@@ -29,7 +29,8 @@ SECRET_KEY = 'django-insecure-lb8wbv+@-vg$l^nwd)&3o@p6md8za6ch(z7qh-1204e4#^rz3j
 
 load_dotenv(BASE_DIR / '.env')
 
-DEBUG = os.getenv('DEBUG') 
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+
 ALLOWED_HOSTS = ["*"]
 
 # air19818!QAZ1qaz
@@ -195,7 +196,7 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
 CORS_ALLOWED_ORIGINS = [
-    "https://aforro-market.vercel.app/",
+    "https://aforro-market.vercel.app",
 ]
 
 
