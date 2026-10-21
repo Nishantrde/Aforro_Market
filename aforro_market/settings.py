@@ -68,6 +68,7 @@ SOCIALACCOUNT_PROVIDERS = {
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -171,6 +172,11 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 DJANGO_VITE = {
   "default": {
@@ -184,13 +190,6 @@ AUTHENTICATION_BACKENDS = (
     "allauth.account.auth_backends.AuthenticationBackend"
 )
 
-# Force WhiteNoise to serve JavaScript modules with the correct MIME type
-WHITENOISE_MIMETypes = {
-    '.js': 'application/javascript',
-    '.mjs': 'application/javascript',
-}
-
-
 SOCIALACCOUNT_LOGIN_ON_GET = True # to skip an extra head ech (extra page)
 
 LOGIN_REDIRECT_URL = "/"
@@ -199,7 +198,6 @@ LOGOUT_REDIRECT_URL = "/"
 CORS_ALLOWED_ORIGINS = [
     "https://aforro-market.vercel.app",
 ]
-
 
 
 
