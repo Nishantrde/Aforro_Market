@@ -187,6 +187,11 @@ SOCIALACCOUNT_LOGIN_ON_GET = True # to skip an extra head ech (extra page)
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
+CORS_ALLOWED_ORIGINS = [
+    "https://aforro-market.vercel.app/",
+]
+
+
 
 
 
