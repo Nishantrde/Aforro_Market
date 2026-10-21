@@ -163,7 +163,7 @@ STATICFILES_DIRS = [
 
 DJANGO_VITE = {
   "default": {
-    "dev_mode": True,
+    "dev_mode": DEBUG,
     "dev_server_port": 5174,
   }
 }
