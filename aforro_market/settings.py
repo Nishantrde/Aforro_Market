@@ -30,7 +30,6 @@ SECRET_KEY = 'django-insecure-lb8wbv+@-vg$l^nwd)&3o@p6md8za6ch(z7qh-1204e4#^rz3j
 load_dotenv(BASE_DIR / '.env')
 
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
-# DEBUG = os.getenv('DEBUG', 'False')
 
 ALLOWED_HOSTS = ["*"]
 
@@ -188,10 +187,12 @@ STORAGES = {
 }
 
 DJANGO_VITE = {
-  "default": {
-    "dev_mode": DEBUG,
-    "dev_server_port": 5174,
-  }
+    "default": {
+        "dev_mode": DEBUG,
+        "dev_server_host": "localhost",
+        "dev_server_port": 5174,
+        "static_url_prefix": "/" if DEBUG else "",
+    }
 }
 
 AUTHENTICATION_BACKENDS = (
@@ -207,6 +208,4 @@ LOGOUT_REDIRECT_URL = "/"
 CORS_ALLOWED_ORIGINS = [
     "https://aforro-market.vercel.app",
 ]
-
-
 

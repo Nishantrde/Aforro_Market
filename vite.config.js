@@ -5,6 +5,10 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    port: 5174,
+    strictPort: true,
+  },
   build: {
     manifest: true,
     outDir: resolve(__dirname, 'static'),
