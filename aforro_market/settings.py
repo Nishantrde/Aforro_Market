@@ -68,6 +68,7 @@ SOCIALACCOUNT_PROVIDERS = {
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # 👈 Make sure this is right here!
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -185,6 +186,7 @@ AUTHENTICATION_BACKENDS = (
 )
 
 # Force WhiteNoise to serve JavaScript modules with the correct MIME type
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 WHITENOISE_MIMETypes = {
     '.js': 'application/javascript',
     '.mjs': 'application/javascript',
