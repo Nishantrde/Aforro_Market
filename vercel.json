@@ -5,11 +5,11 @@
       "src": "aforro_market/wsgi.py",
       "use": "@vercel/python",
       "config": {
-        "maxLambdaSize": "15mb",
-        "buildCommand": "./build.sh"
+        "maxLambdaSize": "15mb"
       }
     }
   ],
+  "buildCommand": "./build.sh",
   "routes": [
     {
       "src": "/(.*)",
