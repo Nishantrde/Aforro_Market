@@ -1,0 +1,27 @@
+{% load django_vite %}
+{% load socialaccount %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aforro Market</title>
+
+    <!-- Inject Django Google Login URL -->
+    <script>
+      window.DJANGO_GOOGLE_LOGIN_URL = "{% provider_login_url 'google' %}?next=/";
+    </script>
+
+    
+
+    <!-- 3. Vite HMR Client & Styles -->
+    {% vite_react_refresh %}
+    {% vite_hmr_client %}
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- 4. Main React Entry Point -->
+    {% vite_asset 'src/main.jsx' %}
+</body>
+</html>
