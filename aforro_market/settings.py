@@ -183,7 +183,7 @@ STATICFILES_DIRS = [
 ]
 STORAGES = {
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
 
@@ -207,7 +207,6 @@ LOGOUT_REDIRECT_URL = "/"
 CORS_ALLOWED_ORIGINS = [
     "https://aforro-market.vercel.app",
 ]
-
 
 
 
