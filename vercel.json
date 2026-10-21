@@ -4,11 +4,16 @@
     {
       "src": "package.json",
       "use": "@vercel/static-build",
-      "config": { "distDir": "static" }
+      "config": {
+        "distDir": "static"
+      }
     },
     {
       "src": "aforro_market/wsgi.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "15mb"
+      }
     }
   ],
   "routes": [
