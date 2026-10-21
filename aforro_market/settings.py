@@ -29,8 +29,7 @@ SECRET_KEY = 'django-insecure-lb8wbv+@-vg$l^nwd)&3o@p6md8za6ch(z7qh-1204e4#^rz3j
 
 load_dotenv(BASE_DIR / '.env')
 
-# DEBUG = os.getenv('DEBUG', 'False').lower() == 'true' 
-DEBUG = False
+DEBUG = os.getenv('DEBUG') 
 ALLOWED_HOSTS = ["*"]
 
 # air19818!QAZ1qaz
@@ -182,6 +181,13 @@ AUTHENTICATION_BACKENDS = (
     "django.contrib.auth.backends.ModelBackend",
     "allauth.account.auth_backends.AuthenticationBackend"
 )
+
+# Force WhiteNoise to serve JavaScript modules with the correct MIME type
+WHITENOISE_MIMETypes = {
+    '.js': 'application/javascript',
+    '.mjs': 'application/javascript',
+}
+
 
 SOCIALACCOUNT_LOGIN_ON_GET = True # to skip an extra head ech (extra page)
 
