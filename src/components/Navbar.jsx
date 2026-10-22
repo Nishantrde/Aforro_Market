@@ -1,6 +1,28 @@
 import React, {useEffect, useRef, useState} from 'react';
 import Popup from 'reactjs-popup';
 
+
+const handleLogout = async () => {
+    try{
+        const responce = await fetch('/user/logout',{
+            method: 'POST',
+            headers: {
+                'Content-Type': 'applocation/json',
+                'X-CSRFToken': csrftoken,
+            },
+            credentials: 'include',
+            
+        })
+        
+        
+    } catch(error){
+        console.log("Logout Failed: ",error);
+        
+    }
+}
+
+
+
 function LoginButton({ isLoggedIn, loginUrl, username }) {
     useEffect(()=>{
         function handelClickOutside(event){
@@ -20,7 +42,10 @@ function LoginButton({ isLoggedIn, loginUrl, username }) {
                     Hi, {username}
                 </button>
             } position = "bottom center">
-                <a href="/user/logout" className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-medium text-xs sm:text-sm rounded-lg shadow-sm transition truncate max-w-[120px]" >Logout</a>
+            
+                <button onClick={handleLogout}
+                 className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-medium text-xs sm:text-sm rounded-lg shadow-sm transition truncate max-w-[120px]" >Logout</button>
+        
             </Popup>
         );
     }

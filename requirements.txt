@@ -8,6 +8,7 @@ Django==6.1.2
 django-allauth==65.19.7
 django-cors-headers==4.9.0
 django-environ==0.14.0
+django-filter==26.2
 django-google-sso==10.0.0
 django-vite==3.2.0
 djangorestframework==3.18.3
@@ -18,6 +19,7 @@ google-auth-oauthlib==1.5.0
 httplib2==0.32.0
 idna==3.20
 loguru==0.7.3
+Markdown==3.11.2
 oauthlib==4.0.0
 psycopg2-binary==2.9.13
 pyasn1==0.6.4

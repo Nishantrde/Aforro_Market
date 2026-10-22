@@ -23,4 +23,5 @@ urlpatterns = [
     path('accounts/', include("allauth.urls")),
     path("user/", include("accounts.urls")),
     path('', TemplateView.as_view(template_name='index.html')),
+    
 ]
