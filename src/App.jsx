@@ -8,6 +8,7 @@ function App() {
 
     
     const logoutUrl = "/user/logout"; // Default django-allauth logout url
+    let name = "";
 
     useEffect(() => {
         fetch('/user/api/user/me', {
@@ -17,6 +18,10 @@ function App() {
             .then((data) => {
                 if (data.is_authenticated) {
                     setUser(data)
+                    name = data.name
+                    console.log(name);
+                    
+                    
                 }
                 setLoading(false)
             })
@@ -31,7 +36,8 @@ function App() {
     }
 
     return (
-        <NavBar/>
+        <NavBar isLoggedIn = {user ? user.is_authenticated : false}
+        name = {user ? user.name : ""}/>
     );
 }
 

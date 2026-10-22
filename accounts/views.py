@@ -9,6 +9,7 @@ def get_current_user(request):
         return JsonResponse({
             "is_authenticated": True,
             "username": request.user.username,
+            "name": request.user.first_name,
             "email": request.user.email,
         })
     return JsonResponse({"is_authenticated": False})
