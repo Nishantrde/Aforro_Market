@@ -1,20 +1,38 @@
 import React, {useEffect, useRef, useState} from 'react';
 import Popup from 'reactjs-popup';
 
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
 
 const handleLogout = async () => {
     try{
+        const csrftoken = getCookie('csrftoken'); // Grab Django's CSRF token
         const responce = await fetch('/user/logout',{
             method: 'POST',
             headers: {
-                'Content-Type': 'applocation/json',
+                'Content-Type': 'application/json',
                 'X-CSRFToken': csrftoken,
             },
             credentials: 'include',
             
         })
+        console.log("here");
         
-        
+        if(responce.ok){
+            window.location.href = "/"
+        }
     } catch(error){
         console.log("Logout Failed: ",error);
         
