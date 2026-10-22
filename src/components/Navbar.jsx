@@ -1,14 +1,27 @@
-import React from 'react';
+import React, {useEffect, useRef, useState} from 'react';
+import Popup from 'reactjs-popup';
 
 function LoginButton({ isLoggedIn, loginUrl, username }) {
+    useEffect(()=>{
+        function handelClickOutside(event){
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                console.log("clicked");
+                
+            }
+        }
+    })
     if (isLoggedIn) {
         return (
-            <a 
-                href={loginUrl}
-                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-medium text-xs sm:text-sm rounded-lg shadow-sm transition truncate max-w-[120px]"
-            >
-                Hi, {username}
-            </a>
+            <Popup trigger=
+            {
+                <button 
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-medium text-xs sm:text-sm rounded-lg shadow-sm transition truncate max-w-[120px]"
+                >
+                    Hi, {username}
+                </button>
+            } position = "bottom center">
+                <a href="/user/logout" className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-medium text-xs sm:text-sm rounded-lg shadow-sm transition truncate max-w-[120px]" >Logout</a>
+            </Popup>
         );
     }
     return (
