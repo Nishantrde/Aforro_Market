@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import logout
 from django.http import JsonResponse
+
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -20,8 +21,10 @@ def get_current_user(request):
     return JsonResponse({"is_authenticated": False})
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def logout_view(request):
-    logout(request)
-    return Response({"sucess":True}, status=status.HTTP_200_OK)
+    if request.user.is_authenticated:
+        logout(request)
+        return Response({"sucess":True}, status=status.HTTP_200_OK)
+    return Response({"sucess":False}, status=status.HTTP_400_BAD_REQUEST)
 
