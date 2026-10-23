@@ -18,9 +18,6 @@ function App() {
             .then((data) => {
                 if (data.is_authenticated) {
                     setUser(data)
-                    name = data.name
-                    console.log(name);
-                    
                     
                 }
                 setLoading(false)

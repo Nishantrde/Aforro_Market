@@ -23,6 +23,5 @@ def get_current_user(request):
 @permission_classes([IsAuthenticated])
 def logout_view(request):
     logout(request)
-    return redirect("/")
-
+    return Response({"sucess":True}, status=status.HTTP_200_OK)
 

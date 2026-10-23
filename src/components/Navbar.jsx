@@ -19,7 +19,7 @@ function getCookie(name) {
 const handleLogout = async () => {
     try{
         const csrftoken = getCookie('csrftoken'); // Grab Django's CSRF token
-        const responce = await fetch('/user/logout',{
+        const response = await fetch('/user/logout',{
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -30,7 +30,7 @@ const handleLogout = async () => {
         })
         console.log("here");
         
-        if(responce.ok){
+        if(response.ok){
             window.location.href = "/"
         }
     } catch(error){
