@@ -1,8 +1,6 @@
 from django.db import models
 from accounts.models import Merchant
 
-
-
 class Product(models.Model):
     product_name = models.CharField(max_length=250, default="product-name")
     category = models.CharField(max_length=250, default="category")

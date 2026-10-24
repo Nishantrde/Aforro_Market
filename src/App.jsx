@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import React, { useState, useEffect } from 'react';
 import NavBar from './components/Navbar';
+import Home from './pages/Home'
 
 function App() {
     const [user, setUser] = useState(null)
@@ -27,14 +28,17 @@ function App() {
                 setLoading(false)
             })
     }, [])
-    console.log("User: ",user);
     if(loading){
         return <div className="flex h-screen items-center justify-center">Loading...</div>
     }
 
     return (
+        <>
         <NavBar isLoggedIn = {user ? user.is_authenticated : false}
         name = {user ? user.name : ""}/>
+        <Home/>
+        </>
+
     );
 }
 
