@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import Popup from 'reactjs-popup';
+import SearchBar from './SearchBar';
 
 function getCookie(name) {
     let cookieValue = null;
@@ -81,7 +82,8 @@ export default function NavBar({ isLoggedIn = false, name }) {
     const loginUrl = window.DJANGO_GOOGLE_LOGIN_URL || "#";
 
     return (
-        <header className="w-full bg-white shadow-sm px-4 py-3 sm:px-6 sm:py-4">
+        <>
+        
             {/* ROW 1: Logo, Login, and Cart */}
             <div className="flex justify-between items-center w-full">
                 {/* Logo on the Left */}
@@ -106,22 +108,8 @@ export default function NavBar({ isLoggedIn = false, name }) {
                 </div>
             </div>
 
-            {/* ROW 2: Search Bar (Full width on mobile, perfectly spaced) */}
-            <div className="mt-3 w-full">
-                <div className="relative">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 sm:h-5 sm:w-5">
-                            <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
-                        </svg>
-                    </span>
-                    <input 
-                        type="text" 
-                        placeholder='Search "milk", "bread", "vegetables"...' 
-                        className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition border border-transparent focus:border-amber-400"
-                    />
-                </div>
-            </div>
-        </header>
+            
+            </>
     );
 }
 

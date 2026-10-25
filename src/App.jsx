@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import React, { useState, useEffect } from 'react';
 import NavBar from './components/Navbar';
 import Home from './pages/Home'
+import SearchBar from './components/SearchBar';
 
 function App() {
     const [user, setUser] = useState(null)
@@ -9,7 +10,6 @@ function App() {
 
     
     const logoutUrl = "/user/logout"; // Default django-allauth logout url
-    let name = "";
 
     useEffect(() => {
         fetch('/user/api/user/me', {
@@ -34,8 +34,12 @@ function App() {
 
     return (
         <>
+        <header className="w-full bg-white shadow-sm px-4 py-3 sm:px-6 sm:py-4">
         <NavBar isLoggedIn = {user ? user.is_authenticated : false}
         name = {user ? user.name : ""}/>
+        {/* ROW 2: Search Bar (Full width on mobile, perfectly spaced) */}
+            <SearchBar/>
+        </header>
         <Home/>
         </>
 
