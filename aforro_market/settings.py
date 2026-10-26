@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 import dj_database_url
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -124,7 +125,8 @@ WSGI_APPLICATION = 'aforro_market.wsgi.application'
 # }
 
 DATABASE_URL = os.getenv('DATABASE_URL')
-if DATABASE_URL:
+RUNNING_TESTS = 'test' in sys.argv      # True only for "python manage.py test ..."
+if DATABASE_URL and not RUNNING_TESTS:
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
