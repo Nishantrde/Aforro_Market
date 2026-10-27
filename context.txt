@@ -1,0 +1,80 @@
+# Handoff summary: Nishant's Aforro Market project
+
+## 1. Who and what
+- **User:** Nishant, a Django backend developer candidate, based in Bangalore. He writes short, casual messages (often voice-style, "bro") and gets lost with long explanations. Explain with small concrete examples.
+- **Standing preference (saved in memory):** he wants to **learn**. Claude explains concepts and code step by step, and he writes the code. Claude reviews it, points out bugs, and gives skeletons with TODOs. (He did explicitly ask Claude to write the test file once, and Claude did.)
+- **Goal:** get hired as a Django backend engineer at **Aforro** (aforro.in), a Bengaluru grocery platform powered by local stores that says it brings "human connection" back to grocery shopping. The interview is **Wednesday, Oct 28, 2026** (it moved from Monday to Tuesday to Wednesday). Right now it's **Tue Oct 27, about 10:15 am IST**.
+- **Salary talk:** he targets 4 LPA. Advice given: treat 4 as the floor, ask 5 to 6, don't name a number first, and confirm in-hand vs CTC in writing. He believes small startups pay all in hand (unverified).
+- **Repo:** https://github.com/Nishantrde/Aforro_Market. Local path: `~/all-project/aforro_market/aforro_market` (Ubuntu, venv, Python 3.12). Live site (from his CORS setting, not verified): https://aforro-market.vercel.app.
+
+## 2. Stack
+Django 6.1.2 and DRF 3.18; React 19, Vite and Tailwind 4 served through django-vite and whitenoise; django-allauth Google login (session auth); Neon Postgres via `DATABASE_URL` (dj-database-url, `ssl_require`) with a SQLite fallback; Vercel (`vercel.json` routes to `wsgi.py`, `build.sh` runs `npm run build` then `collectstatic`). Main URLs: `admin/`, `accounts/` (allauth), `user/`, `store/` (stores app), and `''` serving `index.html`.
+
+## 3. Claude's own environment limits
+- Claude works in a cloud sandbox. It **cannot install Django** (no PyPI or npm access) or run the app, so every review of his code is by reading. Claude must say so and ask him for real test output.
+- GitHub isn't linked, so Claude **cannot push** to his repo. A local branch `claude/search-feature` (commit `d8ec1af`, Claude's own version of the search feature plus `search-feature.patch`) exists only in the sandbox. He doesn't use it. A stop hook keeps complaining about the unpushed commit. Claude offered to delete the branch and he hasn't answered.
+- His pasted code loses its indentation in messages. Ask him to verify indentation where it matters.
+
+## 4. Current code state (as of the last files seen)
+**`stores/models.py`**
+- `Product(product_name, category, price FloatField default 10.0)`
+- `Store(owner FK Merchant CASCADE related_name='stores', store_name, address, created_at, products M2M Product related_name='stores')`
+- `Order(user FK AUTH_USER_MODEL CASCADE related_name='orders', store FK PROTECT related_name='orders', status CharField(max_length=250, choices Status, default PLACED), created_at)`; `Status` = PLACED, CONFIRMED, PACKED, DELIVERED, CANCELLED, OUT_FOR_DELIVERY
+- `OrderItem(order FK CASCADE related_name='items', product FK PROTECT, quantity PositiveBigIntegerField, price Decimal(6,2))`
+- `StoreProduct(store FK CASCADE related_name='store_items', product FK PROTECT related_name='store_items', stock PositiveBigIntegerField default 0)` with `UniqueConstraint(fields=['store','product'], name='unique_store_product')`
+- **Unconfirmed:** whether `makemigrations` and `migrate` were run for `OUT_FOR_DELIVERY` and `StoreProduct`, and whether `StoreProduct` is registered in `admin.py`. Ask him.
+
+**`stores/views.py`** (URLs under `/store/`: `products`, `""` stores, `orders`, `orders/<int:order_id>/cancel`)
+- `get_product` (GET, AllowAny): if `q`, loops all products and keeps those where `get_close_matches(q, name_words) != []` (default cutoff 0.6). **Known flaws:** multi-word queries return nothing, wrong matches ("tooth" matches Toor Dal and Bluetooth), no ranking, no Hinglish, no `.strip()`.
+- `place_order` (POST, IsAuthenticated), request: `{"items":[{"store_id":1,"product_id":3,"quantity":2}]}`. **Phase 1** validates with no writes: empty cart gives 400, store missing 400, `int(quantity)` in try/except, `<= 0` gives 400, then a stock check (`StoreProduct...first()`; None gives "does not sell", `stock < quantity` gives "only N left"), grouped in `lines_by_store = defaultdict(list)`. **Phase 2** is `with transaction.atomic()` creating one `Order` per store and `OrderItem`s with `Decimal(str(product.price))` snapshots, totals as `Decimal`, and returns `[{id, store, status, total}]` with 201. Totals serialise as `"8.2"`, not `"8.20"` (could `.quantize(Decimal('0.01'))`).
+- `cancel_order`: `filter(id=order_id, user=request.user).first()`; None gives 404; status not in (PLACED, CONFIRMED) gives 400; sets CANCELLED. **It does not restore stock yet.**
+
+**`stores/tests.py`:** `PlaceOrderTests` (8) and `CancelOrderTests` (4) used `APIClient.force_login`. All 12 passed **before** the stock change. They now need `StoreProduct` rows in `setUp`, so they will fail until updated.
+
+**`settings.py`:** `import sys`; `RUNNING_TESTS = 'test' in sys.argv`; Neon is used only if `DATABASE_URL and not RUNNING_TESTS`, so tests run on in-memory SQLite (they used to hit Neon: 154 s, and a stale `test_neondb` may remain on Neon).
+
+**Frontend:** `App.jsx` renders `NavBar` and `Home`. `SearchBar.jsx` (written by him) has `query` and `suggestions` state, a 300 ms debounced `fetch('/store/products?q=...')`, a `cancelled` flag against stale responses, a reset when empty, and a dropdown of the top 5. A click-to-select `onClick` was added, but the re-fetch it triggers hasn't been handled (idea: a `justSelected` flag), and click-outside close (`useRef`) isn't done. "Buy Now" does nothing. There is no cart, checkout or My orders page, and no router.
+
+## 5. In-progress task (do this next)
+**Phase 2 of `place_order`:** add `class OutOfStock(Exception)`. Wrap `with transaction.atomic():` in `try/except OutOfStock` that returns 400. Inside it, for each line: `row = StoreProduct.objects.select_for_update().get(store=store, product=product)`; if `row.stock < quantity`, `raise OutOfStock(...)`; then `row.stock -= quantity; row.save()`. (Exceptions inside `atomic()` roll back everything; a plain `return` doesn't.) Then:
+1. Update `setUp` in both test classes to create `StoreProduct` rows (e.g. stock 10).
+2. Add tests: stock drops by the quantity (use `refresh_from_db`); ordering 11 of 10 gives 400 with no order and unchanged stock; cancelling restores stock.
+3. Make `cancel_order` restore stock inside `atomic()`.
+4. Edge case: the same product twice in one cart should be summed per `(store, product)` before the stock check.
+
+## 6. Remaining timetable (today, ending 6 pm)
+- 10:30 to 11:30: frontend cart and checkout. Create `src/api.js` with a CSRF-aware `postJSON` (`credentials:'include'`, `X-CSRFToken` from `getCookie`, which exists in `Navbar.jsx`). Without it, browser POSTs return 403.
+- 11:30 to 12:15: `GET /store/orders`, a My orders page, and a Cancel button.
+- 12:15 to 1:00: lunch.
+- 1:00 to 2:00: status transitions (one function allowing only legal arrows `PLACED→CONFIRMED→PACKED→OUT_FOR_DELIVERY→DELIVERED`, cancel only from PLACED/CONFIRMED), plus shopkeeper confirm and pack endpoints with an ownership check, with tests.
+- 2:00 to 3:00: merchant stock page (endpoints plus a React table).
+- 3:00 to 4:00: `DeliveryPartner` and tracking.
+- 4:00 to 5:00: deploy. Run migrations on Neon, backfill `StoreProduct` rows from the old `Store.products` links (a shell loop; **don't convert the M2M in place**), and smoke-test the live site.
+- 5:00 to 6:00: README, push, practise explaining.
+- **Cut order if behind:** "Quick buy" tab, then tracking, then the merchant page, then search polish. Never cut stock, status transitions, tests or deployment.
+- **Navigation decision:** no react-router. Use a `useState` page switch in `App.jsx`, because Django only serves the React page at `/`.
+
+## 7. Designs agreed but not built
+- **Tracking/GPS:** browser Geolocation API (`watchPosition`) on a partner page posts lat/lng every few seconds; `DeliveryPartner` model, `Order.partner` FK, `POST /store/partner/location`, `GET /store/orders/<id>/track`; the customer polls every 5 s; map with Leaflet and OpenStreetMap (free, no key); privacy: only the order's customer may read it, only while OUT_FOR_DELIVERY, and only the assigned partner may post; use **simulated movement** for the demo. Optionally add `latitude` and `longitude` to `Store` and a haversine "nearest store".
+- **Two sections:** "Quick buy" (system picks a store with stock) and "Buy from a store".
+- **Headline feature:** auto-suggested replacement for an out-of-stock item (rank similar products by category, price and past orders; the customer approves or rejects; expires to a refund; lazy expiry instead of Celery). **Open question:** does he mean that, or a customer-requested replacement after delivery? Ask before building.
+- **Search polish (stretch):** multi-word queries (each typed word must match a name word), stricter cutoff, Hinglish dictionary (doodh to milk, anda, chawal, etc.), ranking (exact > prefix > fuzzy). A working reference implementation is in `stores/search.py` on Claude's sandbox branch, but he should write his own.
+- **PWA (stretch):** `manifest.webmanifest`, a minimal `sw.js` served at the root through a Django `TemplateView` (scope), a registration script, no caching at first, and 192 and 512 icons.
+- **Other ideas:** store notes, reorder, pickup or delivery, digital khata, group orders, low-stock alerts.
+
+## 8. Deployment notes
+- Currently Vercel plus Neon. It's fine without WebSockets (use polling). No Celery.
+- Free no-card options verified by search: Render (one-time card check possible), Neon, Upstash. Koyeb needs a card.
+- **Live-site checklist:** Google OAuth redirect URI for the live domain, update the Site domain (`SITE_ID=2`) in admin, add `CSRF_TRUSTED_ORIGINS`, move `SECRET_KEY` to an env var, and `gunicorn` is needed only on Render.
+
+## 9. Known issues in the repo (flag before anyone reads it)
+A password-looking comment on `settings.py` line 37 (if it's a real password, change it, since it's in git history); hardcoded `SECRET_KEY`; `ALLOWED_HOSTS=["*"]`; `corsheaders` is configured but not installed in `INSTALLED_APPS` or middleware; `Product.price` is a float; `db.sqlite3`, `staticfiles` and `.pyc` files are committed.
+
+## 10. Rules for Claude
+- **Honesty about competitors:** searches found no sign that Blinkit or Zepto offer live replacement approval, digital khata, Hinglish search, and similar features, but that's absence of evidence. Tell him to say "in my research I didn't find this", never "nobody has this".
+- Earlier mistake: Claude said totals would be `"8.20"`, but Decimal addition gives `"8.2"`. Tests compare as `Decimal`.
+- Interview talking points he can honestly give: debounce plus the stale-response guard, validate-first then `atomic`, `Decimal` for money and price snapshotting, ownership check returning 404, row locking for the "last item" race, unique constraint, tests on an in-memory DB, and PROTECT vs CASCADE choices.
+- Interview prep, README and sleep are planned from 6 pm; he asked to be kept to time.
+- Memory files exist (`/profile.md`, `/preferences.md`, `/areas/aforo-interview.md`) holding the interview date, repo link and learning preference.
+
+**Immediate next message to him:** ask whether the migrations ran and `StoreProduct` is in the admin, then guide him through Phase 2 above and its tests.

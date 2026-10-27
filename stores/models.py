@@ -29,6 +29,7 @@ class Order(models.Model):
         PACKED = 'PACKED'
         DELIVERED = 'DELIVERED'
         CANCELLED = 'CANCELLED'
+        OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY'
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='orders')
     store = models.ForeignKey(Store, on_delete=models.PROTECT, related_name='orders')
@@ -47,7 +48,20 @@ class OrderItem(models.Model):
     def __str__(self):
         return str(self.order)
 
-        
-     
+class StoreProduct(models.Model):
+    store = models.ForeignKey(Store, on_delete = models.CASCADE, related_name='store_items')
+    product = models.ForeignKey(Product, on_delete = models.PROTECT, related_name='store_items')
+    stock = models.PositiveBigIntegerField(default=0)
 
+    class Meta:                                      # <-- settings about this model
+        constraints = [
+            models.UniqueConstraint(
+                fields=['store', 'product'],         # <-- this PAIR must be unique
+                name='unique_store_product',         # <-- any name you like
+            )
+        ]
+
+
+    def __str__(self):
+        return f"{self.store} - {self.product} ({self.stock})"
 

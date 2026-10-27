@@ -5,7 +5,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from accounts.models import Merchant
-from .models import Order, OrderItem, Product, Store
+from .models import Order, OrderItem, Product, Store, StoreProduct
 
 class PlaceOrderTests(TestCase):
 
@@ -24,6 +24,10 @@ class PlaceOrderTests(TestCase):
 
         self.store1.products.add(self.milk, self.bread)
         self.store2.products.add(self.soap)
+
+        StoreProduct.objects.create(store = self.store1, product = self.milk, stock = 10)
+        StoreProduct.objects.create(store = self.store1, product = self.bread, stock = 10)
+        StoreProduct.objects.create(store = self.store2, product = self.soap, stock = 10)
 
         self.client = APIClient()
         self.client.force_login(self.customer)
@@ -82,6 +86,47 @@ class PlaceOrderTests(TestCase):
         anonymous = APIClient()
         response = anonymous.post("/store/orders", {"items": []}, format="json")
         self.assertIn(response.status_code, (401, 403))
+
+    def test_order_reduces_stock(self):
+        responce = self.post_cart([
+            {"store_id": self.store1.id, "product_id": self.milk.id, "quantity": 1}
+        ])
+        self.assertEqual(responce.status_code, 201)
+        row = StoreProduct.objects.get(store=self.store1, product=self.milk)  
+        self.assertEqual(row.stock, 9)
+
+    def test_order_out_of_stock(self):
+        responce = self.post_cart([
+                    {"store_id": self.store1.id, "product_id": self.milk.id, "quantity": 11}
+                ])
+        self.assertEqual(responce.status_code, 400)
+        self.assertEqual(Order.objects.count(), 0)
+
+        row = StoreProduct.objects.get(store=self.store1, product=self.milk)
+        self.assertEqual(row.stock, 10)
+
+    def test_product_stores_returns_store_with_stock(self):
+        response = self.client.get(f"/store/products/{self.milk.id}/stores")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["store_id"], self.store1.id)
+        self.assertEqual(data[0]["stock"], 10)
+
+    def test_product_stores_hides_zero_stock(self):
+        row = StoreProduct.objects.get(store=self.store1, product=self.milk)
+        row.stock = 0
+        row.save()
+        response = self.client.get(f"/store/products/{self.milk.id}/stores")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+
+    def test_product_stores_empty_for_unsold_product(self):
+        eggs = Product.objects.create(product_name="Eggs", category="Groceries", price=5.00)
+        response = self.client.get(f"/store/products/{eggs.id}/stores")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+                
 
 
 class CancelOrderTests(TestCase):

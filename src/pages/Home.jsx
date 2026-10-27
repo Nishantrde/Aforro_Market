@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-function ShowProducts() {
+function ShowProducts({addToCart}) {
     const [products, setProducts] = useState([])
 
     useEffect(() => {
@@ -23,7 +23,22 @@ function ShowProducts() {
         return acc
     }, {})
     
-    
+async function handelBuy(item){
+    try{
+        const res = await fetch(`/store/products/${item.id}/stores`)
+        const stores = await res.json()
+        if (stores.length === 0){
+            return alert("Out of stock")
+        }
+        addToCart(stores[0].store_id, item.id)
+    }
+    catch{
+        return alert("Network error")
+    }
+}
+
+
+
     return (
 
         <div className="p-6 space-y-8">
@@ -49,7 +64,7 @@ function ShowProducts() {
                                 </p>
                                 </div>
                                 <button 
-                                    // onClick={() => handleBuy(item)}
+                                    onClick={() => handelBuy(item)}
                                     className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded transition duration-200"
                                 >
                                     Buy Now

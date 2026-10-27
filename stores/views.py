@@ -5,13 +5,17 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from .models import Product, Store, Order, OrderItem
+from .models import Product, Store, Order, OrderItem, StoreProduct
 from .serializer import ProductSerializer, StoreSerializer
 
 from difflib import get_close_matches
 from django.db import transaction
 from decimal import Decimal
 from collections import defaultdict
+
+class OutOfStock(Exception):
+    pass
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])#only for testing
@@ -71,31 +75,57 @@ def place_order(request):
         if quantity <= 0:
             return Response({"error":"quantity must be at least ONE"}, status.HTTP_400_BAD_REQUEST)
 
-        if store.products.filter(id=product_id).exists():
-            lines_by_store[store].append((product, quantity))
-        else:
-            return Response({'error':'product dose not exists in the store'}, status=status.HTTP_400_BAD_REQUEST)
+        # if store.products.filter(id=product_id).exists():
+        #     lines_by_store[store].append((product, quantity))
+        # else:
+        #     return Response({'error':'product dose not exists in the store'}, status=status.HTTP_400_BAD_REQUEST)
 
-    with transaction.atomic():
-        created = []
-        
-        for store, lines in lines_by_store.items():
-            total = Decimal('0')
-            order = Order.objects.create(user = request.user, store = store)
-            for product, quantity in lines:
-                price = Decimal(str(product.price))
-                OrderItem.objects.create(order = order, product = product, quantity = quantity, price = price)
-                total += price*quantity
-                
-            created.append(
-                {
-                    "id": order.id,                 
-                    "store": store.store_name,                          
-                    "status": order.status,         
-                    "total": str(total),            
-                }
-            )
+        stock_row = StoreProduct.objects.filter(store = store, product = product).first()
+
+        if stock_row is None:
+            return Response({'error': 'this store does not sell this product'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if stock_row.stock < quantity:
+            return Response({'error': f'only {stock_row.stock} left in stock'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        lines_by_store[store].append((product, quantity))
+
+    try:
+        with transaction.atomic():
+            created = []
             
+            for store, lines in lines_by_store.items():
+                total = Decimal('0')
+                order = Order.objects.create(user = request.user, store = store)
+                for product, quantity in lines:
+                    # price = Decimal(str(product.price))
+                    # OrderItem.objects.create(order = order, product = product, quantity = quantity, price = price)
+                    # total += price*quantity
+                    
+                    row = StoreProduct.objects.select_for_update().get(store = store, product = product)
+                    if row.stock < quantity:
+                        raise OutOfStock(f"only {row.stock} left of {product.product_name}")
+                    row.stock -= quantity
+                    row.save()
+                    price = Decimal(str(product.price))
+                    OrderItem.objects.create(order = order, product = product, quantity = quantity, price = price)
+                    total += price*quantity
+                    
+
+                created.append(
+                    {
+                        "id": order.id,                 
+                        "store": store.store_name,                          
+                        "status": order.status,         
+                        "total": str(total),            
+                    }
+                )
+
+    except OutOfStock as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
     return Response(created, status=status.HTTP_201_CREATED)
 
@@ -116,7 +146,15 @@ def cancel_order(request, order_id):
     return Response({"id":order.id, "status":order.status}, status=status.HTTP_200_OK)
 
 
-    
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def product_stores(request, product_id):
+    rows = StoreProduct.objects.filter(product_id = product_id, stock__gt = 0).select_related('store')
+    result = []
+    for row in rows:
+        result.append({"store_id": row.store_id, "store_name": row.store.store_name, "stock": row.stock})
+
+    return Response(result)
 
 
 
