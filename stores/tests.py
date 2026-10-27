@@ -141,6 +141,10 @@ class CancelOrderTests(TestCase):
         self.store1 = Store.objects.create(owner=merchant, store_name="Sharma Kirana")
         self.order = Order.objects.create(user=self.customer, store=self.store1)
 
+        self.milk = Product.objects.create(product_name="Milk", category="Groceries", price=2.50)
+        self.stock_row = StoreProduct.objects.create(store=self.store1, product=self.milk, stock=10)
+        OrderItem.objects.create(order=self.order, product=self.milk, quantity=3, price=Decimal("2.50"))
+        
         self.client = APIClient()
         self.client.force_login(self.customer)
 
@@ -164,6 +168,28 @@ class CancelOrderTests(TestCase):
     def test_cancel_nonexistent_order_returns_404(self):
         response = self.client.post("/store/orders/9999/cancel")
         self.assertEqual(response.status_code, 404)
+
+    def test_cancel_restores_stock(self):
+        response = self.client.post(f"/store/orders/{self.order.id}/cancel")
+        self.assertEqual(response.status_code, 200)
+        self.stock_row.refresh_from_db()
+        self.assertEqual(self.stock_row.stock, 13)
+
+    def test_cancel_twice_restores_stock_only_once(self):
+        first = self.client.post(f"/store/orders/{self.order.id}/cancel")
+        second = self.client.post(f"/store/orders/{self.order.id}/cancel")
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 400)
+        self.stock_row.refresh_from_db()
+        self.assertEqual(self.stock_row.stock, 13)   # not 16
+
+    def test_cancel_delivered_order_does_not_touch_stock(self):
+        self.order.status = Order.Status.DELIVERED
+        self.order.save()
+        response = self.client.post(f"/store/orders/{self.order.id}/cancel")
+        self.assertEqual(response.status_code, 400)
+        self.stock_row.refresh_from_db()
+        self.assertEqual(self.stock_row.stock, 10)
 
 
         

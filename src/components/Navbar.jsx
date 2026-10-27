@@ -30,14 +30,7 @@ const handleLogout = async () => {
 
 
 function LoginButton({ isLoggedIn, loginUrl, username }) {
-    useEffect(()=>{
-        function handelClickOutside(event){
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-                console.log("clicked");
-                
-            }
-        }
-    })
+    
     if (isLoggedIn) {
         return (
             <Popup trigger=
@@ -65,7 +58,7 @@ function LoginButton({ isLoggedIn, loginUrl, username }) {
     );
 }
 
-export default function NavBar({ isLoggedIn = false, name }) {
+export default function NavBar({ isLoggedIn = false, name, onCartClick }) {
     const loginUrl = window.DJANGO_GOOGLE_LOGIN_URL || "#";
 
     return (
@@ -85,7 +78,7 @@ export default function NavBar({ isLoggedIn = false, name }) {
                     <LoginButton isLoggedIn={isLoggedIn} loginUrl={loginUrl} username={name} />
                     
                     {/* Cart button */}
-                    <div className="relative p-1 text-gray-700 hover:text-black transition">
+                    <div className="relative p-1 text-gray-700 hover:text-black transition" onClick={onCartClick}>
                         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-7 sm:size-8">
                             <path d="M3 4h2.2l2.3 10.5h9.8L19.5 7H6"/>
                             <circle cx="9.5" cy="19" r="1.5"/>

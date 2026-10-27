@@ -30,7 +30,7 @@ async function handelBuy(item){
         if (stores.length === 0){
             return alert("Out of stock")
         }
-        addToCart(stores[0].store_id, item.id)
+        addToCart(stores[0].store_id, item)
     }
     catch{
         return alert("Network error")

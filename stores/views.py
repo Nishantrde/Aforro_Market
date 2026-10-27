@@ -140,10 +140,25 @@ def cancel_order(request, order_id):
     if order.status not in (Order.Status.PLACED, Order.Status.CONFIRMED):
         return Response({"error":f"order can't be cancelled because order is in {order.status}"}, status=status.HTTP_400_BAD_REQUEST)
 
-    order.status = Order.Status.CANCELLED
-    order.save()
+    # order.status = Order.Status.CANCELLED
+    # order.save()
 
-    return Response({"id":order.id, "status":order.status}, status=status.HTTP_200_OK)
+    # return Response({"id":order.id, "status":order.status}, status=status.HTTP_200_OK)
+
+    with transaction.atomic():
+        locked = Order.objects.select_for_update().get(id=order.id)
+        if locked.status not in (Order.Status.PLACED, Order.Status.CONFIRMED):
+            return Response({"error": "order can't be cancelled"}, status=status.HTTP_400_BAD_REQUEST)
+        for item in locked.items.all():
+            row = StoreProduct.objects.select_for_update().get(store = locked.store, product = item.product)
+            row.stock += item.quantity
+            row.save()
+        locked.status = Order.Status.CANCELLED
+        locked.save()
+    return Response({"id": locked.id, "status": locked.status}, status=status.HTTP_200_OK)
+
+
+
 
 
 @api_view(['GET'])

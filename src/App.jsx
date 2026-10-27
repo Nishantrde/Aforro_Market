@@ -4,36 +4,46 @@ import NavBar from './components/Navbar';
 import Home from './pages/Home'
 import SearchBar from './components/SearchBar';
 import { postJSON } from './api'
+import Cart from './pages/Cart'
 
 function App() {
     const [user, setUser] = useState(null)
     const [loading, setLoading] = useState(true)
     const [cart, setCart] = useState([])
+    const [page, setPage] = useState('home')
     
-    const logoutUrl = "/user/logout"; // Default django-allauth logout url
 
-    function addToCart(storeId, productId){
+    function addToCart(storeId, product){
         setCart(prev => {
-            const exists = prev.some(item => item.store_id === storeId && item.product_id === productId);
+            const exists = prev.some(line => line.store_id === storeId && line.product_id === product.id);
             if (exists){
-                return prev.map(item=>
-                    item.store_id === storeId && item.product_id === productId
-                    ? { ...item, quantity: item.quantity + 1 }
-                    : item
+                return prev.map(line =>
+                    line.store_id === storeId && line.product_id === product.id
+                    ? { ...line, quantity: line.quantity + 1 }
+                    : line
                 )
             }
-            return [...prev, { store_id: storeId, product_id: productId, quantity: 1 }];
-
+            return [...prev, {
+                store_id: storeId,
+                product_id: product.id,
+                name: product.product_name,
+                price: product.price,
+                quantity: 1
+            }];
         })
     }
 
+
     async function checkout(){
+        if (!user) return alert('Please login first');
+
         if(cart.length === 0){
             return alert('Cart is empty');
         }
         const { ok, data } = await postJSON('/store/orders', { items: cart })
         if(ok){
             setCart([])
+            setPage('home')
             return alert("Order placed")
         }
         else{
@@ -72,11 +82,11 @@ function App() {
         <header className="w-full bg-white shadow-sm px-4 py-3 sm:px-6 sm:py-4">
             <button onClick={checkout}>Checkout ({cart.length})</button>
         <NavBar isLoggedIn = {user ? user.is_authenticated : false}
-        name = {user ? user.name : ""}/>
-        {/* ROW 2: Search Bar (Full width on mobile, perfectly spaced) */}
+        name = {user ? user.name : ""} onCartClick={() => setPage('cart')} />
             <SearchBar/>
         </header>
-        <Home addToCart={addToCart}/>
+        {page === 'home' && <Home addToCart={addToCart} />}
+        {page === 'cart' && <Cart cart={cart} onCheckout={checkout} onBack={() => setPage('home')} />}
         </>
 
     );
