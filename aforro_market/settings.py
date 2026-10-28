@@ -23,8 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-lb8wbv+@-vg$l^nwd)&3o@p6md8za6ch(z7qh-1204e4#^rz3j'
+SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-insecure-key")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 
@@ -32,9 +31,8 @@ load_dotenv(BASE_DIR / '.env')
 
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = ["aforro-market.vercel.app", "localhost", "127.0.0.1"]
 
-# air19818!QAZ1qaz
 SITE_ID = 2
 
 # Application definition
