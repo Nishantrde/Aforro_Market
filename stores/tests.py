@@ -7,6 +7,9 @@ from rest_framework.test import APIClient
 from accounts.models import Merchant
 from .models import Order, OrderItem, Product, Store, StoreProduct
 
+from django.test import SimpleTestCase
+from .views import can_move
+
 class PlaceOrderTests(TestCase):
 
     def setUp(self):
@@ -238,5 +241,72 @@ class MyOrdersTests(TestCase):
         response = anonymous.get("/store/orders/list")
         self.assertIn(response.status_code, (401, 403))
 
+class CanMoveTests(SimpleTestCase):
 
-        
+    def test_legal_moves(self):
+        self.assertTrue(can_move("PLACED", "CONFIRMED"))
+        self.assertTrue(can_move("CONFIRMED", "PACKED"))
+        self.assertTrue(can_move("PACKED", "OUT_FOR_DELIVERY"))
+        self.assertTrue(can_move("OUT_FOR_DELIVERY", "DELIVERED"))
+
+    def test_cannot_skip_steps(self):
+        self.assertFalse(can_move("PLACED", "DELIVERED"))
+        self.assertFalse(can_move("PLACED", "PACKED"))
+
+    def test_cannot_go_backwards(self):
+        self.assertFalse(can_move("PACKED", "PLACED"))
+
+    def test_final_states_cannot_move(self):
+        self.assertFalse(can_move("DELIVERED", "PLACED"))
+        self.assertFalse(can_move("CANCELLED", "CONFIRMED"))
+
+class UpdateOrderStatusTests(TestCase):
+
+    def setUp(self):
+        User = get_user_model()
+        self.customer = User.objects.create_user(username="nishant", password="pass12345")
+        self.owner = User.objects.create_user(username="shopkeeper", password="pass12345")
+        self.other_owner = User.objects.create_user(username="shopkeeper2", password="pass12345")
+        merchant = Merchant.objects.create(user=self.owner)
+        Merchant.objects.create(user=self.other_owner)
+
+        self.store1 = Store.objects.create(owner=merchant, store_name="Sharma Kirana")
+        self.order = Order.objects.create(user=self.customer, store=self.store1)
+
+        self.client = APIClient()
+        self.client.force_login(self.owner)
+
+    def post_status(self, new_status):
+        return self.client.post(
+            f"/store/orders/{self.order.id}/status", {"status": new_status}, format="json"
+        )
+
+    def test_owner_can_confirm_order(self):
+        response = self.post_status("CONFIRMED")
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, "CONFIRMED")
+
+    def test_cannot_skip_to_delivered(self):
+        response = self.post_status("DELIVERED")
+        self.assertEqual(response.status_code, 400)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, "PLACED")
+
+    def test_cannot_set_cancelled_here(self):
+        response = self.post_status("CANCELLED")
+        self.assertEqual(response.status_code, 400)
+
+    def test_other_shopkeeper_gets_404(self):
+        self.client.force_login(self.other_owner)
+        response = self.post_status("CONFIRMED")
+        self.assertEqual(response.status_code, 404)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, "PLACED")
+
+    def test_customer_gets_404(self):
+        self.client.force_login(self.customer)
+        response = self.post_status("CONFIRMED")
+        self.assertEqual(response.status_code, 404)
+
+

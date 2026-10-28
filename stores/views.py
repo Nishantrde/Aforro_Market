@@ -16,6 +16,17 @@ from collections import defaultdict
 class OutOfStock(Exception):
     pass
 
+ALLOWED = {
+    "PLACED": ["CONFIRMED"],
+    "CONFIRMED": ["PACKED"],
+    "PACKED": ["OUT_FOR_DELIVERY"],
+    "OUT_FOR_DELIVERY": ["DELIVERED"],
+}
+
+
+def can_move(current, new):
+    return new in ALLOWED.get(current, [])
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])#only for testing
@@ -74,11 +85,6 @@ def place_order(request):
         
         if quantity <= 0:
             return Response({"error":"quantity must be at least ONE"}, status.HTTP_400_BAD_REQUEST)
-
-        # if store.products.filter(id=product_id).exists():
-        #     lines_by_store[store].append((product, quantity))
-        # else:
-        #     return Response({'error':'product dose not exists in the store'}, status=status.HTTP_400_BAD_REQUEST)
 
         stock_row = StoreProduct.objects.filter(store = store, product = product).first()
 
@@ -193,6 +199,22 @@ def my_orders(request):
             "total": str(total),
         })
     return Response(result)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_order_status(request, order_id):
+    new_status = request.data.get('status')
+
+    order = Order.objects.filter(id=order_id, store__owner__user=request.user).first()
+    if order is None:
+        return Response({"error": "order not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    if not can_move(order.status, new_status):
+        return Response({"error": f"can't move from {order.status} to {new_status}"}, status=status.HTTP_400_BAD_REQUEST)
+
+    order.status = new_status
+    order.save()
+    return Response({"id": order.id, "status": order.status})
 
 
 
