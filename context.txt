@@ -78,3 +78,49 @@ A password-looking comment on `settings.py` line 37 (if it's a real password, ch
 - Memory files exist (`/profile.md`, `/preferences.md`, `/areas/aforo-interview.md`) holding the interview date, repo link and learning preference.
 
 **Immediate next message to him:** ask whether the migrations ran and `StoreProduct` is in the admin, then guide him through Phase 2 above and its tests.
+
+Here's the whole session in one place, bro.
+
+## Where you started
+You're Nishant, preparing for a Django backend interview at Aforro (Bengaluru, local-store grocery). The interview is on Wed 28 Oct. Your style is that you write the code and I review it. I can't run anything, so you pasted the real test output as proof.
+
+## Built and proven this session
+- **Stock:** `place_order` checks everything first, then runs in `atomic()` with `select_for_update` row locks. If the stock isn't enough, it rolls back everything.
+- **Cancel:** it restores stock inside a lock. A double cancel can't add stock twice.
+- **My orders:** `GET /store/orders/list`, with `select_related` and `prefetch_related` so it avoids the N+1 problem.
+- **Status rules:** `ALLOWED` and `can_move`, plus the shopkeeper endpoint `update_order_status`. It has an ownership check that returns 404 for other people, and cancel can't go through it.
+- **Tests:** 12 at the start, now **33 passing** (your output showed 33 OK).
+- **Frontend:** cart page, page switching without a router, My Orders with a Cancel button, and the login guard. You confirmed the whole flow works in the browser.
+- **Deployment:** you said the live site works. I never saw it, so I'm going on your word.
+
+## Security
+You pasted the `# air...` password comment and your whole `.env` in chat (Neon password, Google secret, `SECRET_KEY`). I told you to rotate them. You later said rotation, `.gitignore`, the push and the README are all done and asked me to trust you, so I did.
+
+I also fixed the `MultipleObjectsReturned` error: allauth had two Google apps in the database, and you must keep exactly one.
+
+## Design discussions
+- **GPS tracking:** polling every 5 seconds, no WebSockets. It's designed, not built.
+- **Redis (Upstash):** the plan is cache-aside for the product list with a 60-second expiry. Never cache stock. It's not built yet, and you decided to do it at the end. Say "I used Redis as a cache", never "I'm a Redis expert".
+- **System design points to use:** locking, a state machine, atomicity, N+1, idempotency (your `place_order` doesn't have it yet, so say so), pagination, stateless app, and async queues.
+- **What's different from Blinkit/Zepto:** per-store stock and one order per store. Say "in my research I didn't find...", never "nobody has this".
+
+## Restyle and search (just now)
+- I wrote 7 files: `theme.js` (one place for colours), `App`, `Navbar`, `SearchBar`, `Home`, `Cart` and `MyOrders`. The look is green with an amber accent. I could not read aforro.in's real CSS, so it is not an exact match.
+- You asked for search that filters the product grid. The new design keeps the query in `App`, and `Home` filters by it, so an empty box shows everything.
+- **Not working yet:**
+  - **Navbar.jsx:** it needs `query, onSearch` in the props and `<SearchBar query={query} onChange={onSearch} />`.
+  - **App.jsx:** it needs the `query` state, `query` and `onSearch` passed to `NavBar`, and `query` passed to `Home`.
+  - `SearchBar.jsx` and `Home.jsx` are already correct.
+
+## Still open
+1. Finish the two search edits above, then test: "milk" filters, clearing shows all.
+2. **Merchant orders:** write `merchant_orders` (backend, tests, then the React page). This is the shopkeeper UI.
+3. **Merchant stock page:** backend, tests, then a table.
+4. **Redis caching:** last, only if there's time.
+5. **Home.jsx** was the real products file, not a wrapper.
+
+## Interview reminders
+- Practise out loud: locking, `atomic`, `Decimal` and the price snapshot, the ownership 404, `can_move`, N+1, and polling vs WebSockets.
+- Say clearly what is built and what is only designed. The old backend `?q=` fuzzy search is no longer used by the app.
+- Leave an hour for a mock interview. Stop building on time.
+
