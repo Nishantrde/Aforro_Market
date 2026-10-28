@@ -53,11 +53,11 @@ class StoreProduct(models.Model):
     product = models.ForeignKey(Product, on_delete = models.PROTECT, related_name='store_items')
     stock = models.PositiveBigIntegerField(default=0)
 
-    class Meta:                                      # <-- settings about this model
+    class Meta:                                      
         constraints = [
             models.UniqueConstraint(
-                fields=['store', 'product'],         # <-- this PAIR must be unique
-                name='unique_store_product',         # <-- any name you like
+                fields=['store', 'product'],         
+                name='unique_store_product',         
             )
         ]
 

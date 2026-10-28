@@ -158,9 +158,6 @@ def cancel_order(request, order_id):
     return Response({"id": locked.id, "status": locked.status}, status=status.HTTP_200_OK)
 
 
-
-
-
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def product_stores(request, product_id):
@@ -170,6 +167,33 @@ def product_stores(request, product_id):
         result.append({"store_id": row.store_id, "store_name": row.store.store_name, "stock": row.stock})
 
     return Response(result)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_orders(request):
+    orders = (Order.objects.filter(user=request.user)
+          .select_related('store')
+          .prefetch_related('items__product')
+          .order_by('-created_at'))
+    result = []
+    for order in orders:
+        items = []
+        total = Decimal('0')
+        for item in order.items.all():
+            items.append({"name": item.product.product_name, "quantity": item.quantity, "price": str(item.price)})
+            total += item.price * item.quantity
+
+        result.append({
+            "id": order.id,
+            "store": order.store.store_name,
+            "status": order.status,
+            "created_at": order.created_at.isoformat(),
+            "items": items,
+            "total": str(total),
+        })
+    return Response(result)
+
 
 
 

@@ -5,6 +5,7 @@ import Home from './pages/Home'
 import SearchBar from './components/SearchBar';
 import { postJSON } from './api'
 import Cart from './pages/Cart'
+import MyOrders from './pages/MyOrders'
 
 function App() {
     const [user, setUser] = useState(null)
@@ -81,12 +82,14 @@ function App() {
         <>
         <header className="w-full bg-white shadow-sm px-4 py-3 sm:px-6 sm:py-4">
             <button onClick={checkout}>Checkout ({cart.length})</button>
+            <button onClick={() => setPage('orders')}>My orders</button>
         <NavBar isLoggedIn = {user ? user.is_authenticated : false}
         name = {user ? user.name : ""} onCartClick={() => setPage('cart')} />
             <SearchBar/>
         </header>
         {page === 'home' && <Home addToCart={addToCart} />}
         {page === 'cart' && <Cart cart={cart} onCheckout={checkout} onBack={() => setPage('home')} />}
+        {page === 'orders' && <MyOrders onBack={() => setPage('home')} />}
         </>
 
     );

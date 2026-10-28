@@ -191,5 +191,52 @@ class CancelOrderTests(TestCase):
         self.stock_row.refresh_from_db()
         self.assertEqual(self.stock_row.stock, 10)
 
+class MyOrdersTests(TestCase):
+
+    def setUp(self):
+        User = get_user_model()
+        self.customer = User.objects.create_user(username="nishant", password="pass12345")
+        self.other_customer = User.objects.create_user(username="otheruser", password="pass12345")
+        shopkeeper = User.objects.create_user(username="shopkeeper", password="pass12345")
+        merchant = Merchant.objects.create(user=shopkeeper)
+
+        self.store1 = Store.objects.create(owner=merchant, store_name="Sharma Kirana")
+        self.milk = Product.objects.create(product_name="Milk", category="Groceries", price=2.50)
+        self.bread = Product.objects.create(product_name="Bread", category="Groceries", price=3.20)
+
+        # one order: 2 milk + 1 bread = 5.00 + 3.20 = 8.20
+        self.order = Order.objects.create(user=self.customer, store=self.store1)
+        OrderItem.objects.create(order=self.order, product=self.milk, quantity=2, price=Decimal("2.50"))
+        OrderItem.objects.create(order=self.order, product=self.bread, quantity=1, price=Decimal("3.20"))
+
+        self.client = APIClient()
+        self.client.force_login(self.customer)
+
+    def test_my_orders_returns_own_order_with_total(self):
+        response = self.client.get("/store/orders/list")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["id"], self.order.id)
+        self.assertEqual(data[0]["store"], "Sharma Kirana")
+        self.assertEqual(data[0]["status"], "PLACED")
+        self.assertEqual(Decimal(data[0]["total"]), Decimal("8.20"))
+
+    def test_my_orders_lists_item_names_and_quantities(self):
+        data = self.client.get("/store/orders/list").json()
+        items = {i["name"]: i["quantity"] for i in data[0]["items"]}
+        self.assertEqual(items, {"Milk": 2, "Bread": 1})
+
+    def test_other_customer_sees_no_orders(self):
+        self.client.force_login(self.other_customer)
+        response = self.client.get("/store/orders/list")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+
+    def test_my_orders_requires_login(self):
+        anonymous = APIClient()
+        response = anonymous.get("/store/orders/list")
+        self.assertIn(response.status_code, (401, 403))
+
 
         
