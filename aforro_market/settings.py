@@ -146,12 +146,11 @@ if REDIS_URL and not RUNNING_TESTS:
         'default': {
             'BACKEND': 'django.core.cache.backends.redis.RedisCache',
             'LOCATION': REDIS_URL,
-        },
-        'LOCATION': REDIS_URL,
-        'OPTIONS': {
-            'socket_connect_timeout': 1,
-            'socket_timeout': 1,
-        },
+            'OPTIONS': {
+                'socket_connect_timeout': 1,
+                'socket_timeout': 1,
+            },
+        }
     }
 else:
     CACHES = {
