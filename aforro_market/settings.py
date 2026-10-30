@@ -31,7 +31,7 @@ load_dotenv(BASE_DIR / '.env')
 
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = ["aforro-market.vercel.app", "localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["aforro-market.vercel.app",".vercel.app", "localhost", "127.0.0.1"]
 
 SITE_ID = 2
 
