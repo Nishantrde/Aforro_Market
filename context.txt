@@ -298,3 +298,137 @@ move an order one legal step forward
 6. Delivery partners with polling on main.
 7. Docker and compose.
 8. ws branch with Channels, run locally.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Here's the full picture, bro. Everything is from what you pasted. I can't run your code, so "unconfirmed" means I haven't seen proof.
+
+## 1. What this project is
+
+Aforro Market is a Django grocery marketplace modelled on Aforro (local stores, Bengaluru). You write the code and I review it. Repo: `github.com/Nishantrde/Aforro_Market`. Live site: `aforro-market.vercel.app` (taken from your word; I never saw it).
+
+My notes say the interview was **Wed 28 Oct**, and today is Fri 30 Oct. You never told me how it went, so tell me if you want me to switch from prep mode to follow-up mode.
+
+## 2. What happened in this session
+
+1. I reviewed all your files and found bugs in `MerchantOrders.jsx` and `settings.py`.
+2. We did the **Redis outage guard**. Your tests caught a real bug: `warnings.warn(msg, e)` crashed inside the `except`. You fixed it and got **42 tests, OK**.
+3. We built **CI**. The file was empty at first, then you filled it. The `test` job went **green**.
+4. You added the **frontend job**. It's pushed, but I haven't seen its result.
+5. `runserver` crashed with `'str' object has no attribute 'copy'` (the `CACHES` block). Still unconfirmed fixed.
+6. CI was slow (7+ minutes). I suggested the MD5 hasher for tests.
+
+## 3. Goals achieved
+
+**Proven (you pasted output or a green tick):**
+- Place order with validation, `atomic()`, row locks and price snapshot
+- Cancel order that restores stock, and can't restore twice
+- My orders (no N+1), shopkeeper status update, shopkeeper orders list
+- Redis cache for the product list, plus the outage guard
+- 42 tests passing locally
+- CI `test` job green on GitHub
+
+**Reported by you, not seen by me:**
+- Secrets rotated, `.gitignore` fixed, README done
+- Live site works, frontend flow works in browser
+
+## 4. Goals not done yet
+
+**Fix first (small):**
+1. **`CACHES` crash**: `runserver` fails. Vercel will crash the same way if `REDIS_URL` is set.
+2. **`frontend` CI job**: confirm green.
+3. **`MerchantOrders.jsx`**: remove the Cancel button (shopkeepers get 404), use the `NEXT` map for one button, fix the "My orders" heading.
+4. **`settings.py`**: move `load_dotenv()` above `SECRET_KEY`.
+5. **MD5 hasher** under `if RUNNING_TESTS:` to speed up tests.
+6. **Branch protection** on `main` (optional).
+
+**Then, in order:**
+7. Lock ordering in `place_order`, plus the test `test_cart_order_does_not_matter` (expect 43 tests)
+8. Idempotency (a double click makes two orders)
+9. Merchant stock endpoint (owner only, 404 for others, no negatives), then a React table
+10. Delivery partners and tracking (polling, not WebSockets)
+11. Docker (local only), WebSockets (separate `ws` branch, local only)
+12. Search polish (Hinglish, ranking), PWA, other ideas
+
+**Unconfirmed from before:** migrations for `OUT_FOR_DELIVERY` and `StoreProduct`, `StoreProduct` in admin, whether the shop orders page shows data, and whether the email to Aforro was sent.
+
+## 5. Files and what each does
+
+Paths are relative to `~/all-project/aforro_market/aforro_market` (where `manage.py` lives). Frontend paths are inferred from imports.
+
+**Root**
+
+| File | What it does |
+|---|---|
+| `manage.py` | Runs Django commands (`runserver`, `test`, `migrate`) |
+| `requirements.txt` | Python packages. CI installs from this, so it must be complete |
+| `package.json`, `package-lock.json` | React packages. `npm ci` uses them |
+| `vite.config.js` | Vite (frontend build) settings |
+| `vercel.json` | Tells Vercel to route to `wsgi.py` |
+| `build.sh` | Vercel build: `npm run build`, then `collectstatic` |
+| `.github/workflows/ci.yml` | The CI robot: runs tests and frontend build on every push |
+| `db.sqlite3` | Local database. Should not be in git |
+| `staticfiles/` | `collectstatic` output. Should not be in git |
+| `node_modules/` | Installed JS packages. Must be in `.gitignore` |
+| `context.txt` | Your notes (check it has no secrets) |
+| `add_products.py`, `products.json` | Probably product seed data (inferred) |
+| `public/`, `static/`, `templates/` | Assets, logo, and the HTML page that loads React |
+
+**`aforro_market/` (project package)**
+
+| File | What it does |
+|---|---|
+| `settings.py` | All settings: DB, Redis `CACHES`, allauth, `RUNNING_TESTS` |
+| `urls.py` | Routes: `admin/`, `accounts/`, `user/`, `store/`, and `''` for React |
+| `wsgi.py` | Entry point for Vercel |
+
+**`stores/` (main app)**
+
+| File | What it does |
+|---|---|
+| `models.py` | `Product`, `Store`, `Order`, `OrderItem`, `StoreProduct` |
+| `views.py` | All API logic: products (cached), place/cancel order, my orders, merchant orders, status update, `can_move` |
+| `urls.py` | Maps URLs to those views |
+| `serializer.py` | Turns products and stores into JSON |
+| `tests.py` | 42 tests in 7 classes |
+| `admin.py`, `migrations/` | Admin and DB changes (not seen) |
+
+**`accounts/`**: `models.py` has `Merchant` (a store's owner). The user endpoints (`/user/...`) live here too (not seen).
+
+**`src/` (React)**
+
+| File | What it does |
+|---|---|
+| `main.jsx` | Starts React |
+| `App.jsx` | Holds user, cart, page and search state; switches pages |
+| `api.js` | `getCookie` and `postJSON` (adds the CSRF header) |
+| `theme.js` | Colours and button styles in one place |
+| `components/Navbar.jsx` | Logo, links, cart count, login/logout, search |
+| `components/SearchBar.jsx` | Search input with clear button |
+| `pages/Home.jsx` | Product grid by category, filters by search, add to cart |
+| `pages/Cart.jsx` | Cart lines, total, place order |
+| `pages/MyOrders.jsx` | Customer's orders and Cancel button |
+| `pages/MerchantOrders.jsx` | Shopkeeper's orders and status buttons (has the bugs above) |
+
+## 6. What to do right now
+
+1. Run `python manage.py runserver` and tell me if the `CACHES` error is gone.
+2. Tell me if the `frontend` job is green.
+
+Then we do lock ordering.
+
+I can also put this summary into a file (a Doc or Markdown) if you want to keep it.

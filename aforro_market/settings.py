@@ -124,6 +124,12 @@ WSGI_APPLICATION = 'aforro_market.wsgi.application'
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 RUNNING_TESTS = 'test' in sys.argv      # True only for "python manage.py test ..."
+
+if RUNNING_TESTS:
+    PASSWORD_HASHERS = [
+        "django.contrib.auth.hashers.MD5PasswordHasher",
+    ]
+
 if DATABASE_URL and not RUNNING_TESTS:
     DATABASES = {
         'default': dj_database_url.config(
