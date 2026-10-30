@@ -28,6 +28,7 @@ pycparser==3.11
 PyJWT==2.15.1
 pyparsing==3.3.3
 python-dotenv==1.2.4
+redis==8.1.0
 requests==2.34.2
 requests-oauthlib==2.0.0
 sqlparse==0.6.0

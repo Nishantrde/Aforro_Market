@@ -124,3 +124,177 @@ I also fixed the `MultipleObjectsReturned` error: allauth had two Google apps in
 - Say clearly what is built and what is only designed. The old backend `?q=` fuzzy search is no longer used by the app.
 - Leave an hour for a mock interview. Stop building on time.
 
+Aforro Market: Project Record
+Prepared for Nishant. Covers what was built, what was decided, what is still open, and where every file lives. Everything here comes from what was pasted or said in the conversation. Where something was never confirmed, it is marked unconfirmed.
+1. Overview
+Goal: build a Django backend grocery marketplace modelled on Aforro (local-store grocery, Bengaluru) and use it to get hired as a Django backend developer.
+Interview: Aforro, date recorded in the notes as Wednesday 28 October 2026.
+Repo: https://github.com/Nishantrde/Aforro_Market
+Live site: https://aforro-market.vercel.app (taken from your settings and your word that it works; never seen by Claude).
+Local path: ~/all-project/aforro_market/aforro_market (Ubuntu, venv, Python 3.12).
+How we worked: you write the code, Claude explains step by step and reviews. Claude cannot run your code or reach GitHub, so every review was done by reading, and "it passes" was only claimed after you pasted real test output.
+2. Tech stack
+• Backend: Django 6.1.2, Django REST Framework, django-allauth (Google login, session auth)
+• Database: Neon Postgres via DATABASE_URL (dj-database-url, SSL), SQLite fallback and for tests
+• Frontend: React 19, Vite, Tailwind 4, served through django-vite and whitenoise
+• Cache: Upstash Redis through Django's built-in Redis cache backend (redis package)
+• Hosting: Vercel (vercel.json routes to wsgi.py, build.sh runs the frontend build then collectstatic)
+3. Goals achieved
+Backend features (all covered by tests)
+• Products list: GET /store/products, public, with an old fuzzy ?q= search that the app no longer uses.
+• Stores list: GET /store/.
+• Which stores have a product: GET /store/products/<id>/stores, only rows with stock above zero.
+• Place order: POST /store/orders. Validates everything first with no writes (empty cart, store exists, quantity is a whole number above zero, store sells the product, enough stock). Then runs inside transaction.atomic() with select_for_update() row locks and re-checks stock under the lock. One Order per store. OrderItem stores a price snapshot as Decimal. If stock runs out mid-way, everything rolls back (OutOfStock exception returns 400).
+• Cancel order: POST /store/orders/<id>/cancel. Only the customer who owns the order (others get 404). Only from PLACED or CONFIRMED. Restores stock inside a lock. A second cancel cannot restore stock twice.
+• My orders: GET /store/orders/list, with select_related and prefetch_related so it avoids the N+1 problem.
+• Order status rules: ALLOWED map and can_move() function. Legal path: PLACED to CONFIRMED to PACKED to OUT_FOR_DELIVERY to DELIVERED. Cancel is blocked in this endpoint.
+• Shopkeeper status update: POST /store/orders/<id>/status. Ownership check through store__owner__user; anyone else gets 404.
+• Shopkeeper orders list: GET /store/merchant/orders. Orders for stores the logged-in user owns, includes the customer username. Other users get an empty list.
+• Redis caching of the product list: cache-aside with key products:all and a 60 second expiry, applied only to the no-search path. Stock and orders are never cached.
+Tests
+• Last pasted output: 40 tests, OK (python manage.py test stores).
+• Test classes: PlaceOrderTests, CancelOrderTests, MyOrdersTests, CanMoveTests, UpdateOrderStatusTests, MerchantOrdersTests, ProductCacheTests.
+• Tests run on in-memory SQLite (not Neon) thanks to the RUNNING_TESTS setting, and use the local-memory cache instead of Upstash.
+• Cache tests prove: second call does no database queries; cached list stays stale until cleared; stock is never cached.
+Frontend (you confirmed the main flow works in the browser)
+• Green and amber restyle with one theme file.
+• Product grid grouped by category, with a search bar that filters the grid by every typed word.
+• Add to cart (picks the first store that has stock), cart page, checkout, page switching without a router, My Orders with a Cancel button, login guard.
+• CSRF-aware postJSON helper.
+• Shop orders page (MerchantOrders.jsx): a corrected version was given. Unconfirmed that it works in the browser.
+Security and deployment clean-up (as you reported)
+• You said the exposed secrets were rotated, .gitignore fixed, repo pushed, README done. Claude could not verify any of these and went on your word.
+• ALLOWED_HOSTS was tightened to the real domain and localhost.
+• Fixed the allauth MultipleObjectsReturned error: exactly one Google social app must exist in the database.
+Non-code work
+• Interview preparation: a 60 second pitch, likely questions and answers (locking, atomic, Decimal, price snapshot, 404 vs 403, N+1, PROTECT vs CASCADE, polling vs WebSockets), an honest built-versus-designed list, questions to ask them, and salary advice (treat 4 LPA as the floor, do not name a number first, confirm in-hand versus CTC in writing).
+• Email to the Aforro hiring contact: drafted, mentions your Sparrow Host full stack experience, the repo, the live link, and the interview date. Not confirmed sent.
+• QA/testing answer: a draft about testing an AI agent deployment at Sparrow Host. Claude did not know what you really did there, so you were told to keep only what is true and name the tools you really used.
+4. Goals not achieved yet
+In progress or unconfirmed
+• Redis outage guard: try/except around cache.get and cache.set, socket timeouts in CACHES, and two tests using mock.patch. Assigned, not confirmed written. Without it, a Redis failure can return a 500 on the home page.
+• Redis live check: confirming :1:products:all appears in Upstash after opening the products page, and setting REDIS_URL in Vercel. You said "all fixes are done", but no output was pasted.
+• test_search_still_filters test: suggested after fixing the missing return in the search branch, not seen in your file.
+• Shop orders page: an empty list was reported earlier. The likely cause was data (logged-in user not linked to a Merchant who owns the store, or a Google login creating a different user). The final cause was never confirmed.
+• Migrations for OUT_FOR_DELIVERY and StoreProduct and StoreProduct in admin: asked in the handoff, never confirmed.
+Planned, not started
+1. CI with GitHub Actions (.github/workflows/ci.yml): checkout, Python 3.12, install requirements, makemigrations --check, manage.py test, then Node npm ci and npm run build. Skeleton given, nothing written yet. Branch protection to make it a real gate.
+2. Lock ordering in place_order: sort lines by (store_id, product_id) before locking to avoid deadlocks, plus one test.
+3. Idempotency for place_order: an idempotency key so a double click cannot create two orders.
+4. Merchant stock page: update_stock endpoint (owner only, 404 for others, rejects negative numbers) with 4 tests, then a React table.
+5. Delivery partners: DeliveryPartner model, store latitude and longitude, Order.partner, order delivery coordinates, haversine distance, partner location endpoint (one row per partner, overwritten each time), pick_partner choosing the closest online partner with a fresh last_seen and no active order (locked inside atomic()), role split (shopkeeper does PLACED to PACKED, partner does PACKED to DELIVERED), customer tracking endpoint (only the order's customer, only while OUT_FOR_DELIVERY), and a heat map endpoint for shopkeepers or admins. This was paused to work on Redis.
+6. Docker: two-stage Dockerfile (Node build then Python/gunicorn), .dockerignore (never include .env), and docker-compose.yml with web, Postgres and Redis. Local use only; Vercel does not run the image.
+7. WebSockets (local only, on a separate ws branch): Django Channels, ASGI server, a consumer for order tracking, group per order, in-memory channel layer first then local Redis. main stays on polling and stays deployed.
+8. Redis extras: instant refresh by deleting the key when a product is saved (signal).
+9. Search polish: multi-word and Hinglish search on the backend, ranking.
+10. Other ideas: PWA, reorder, store notes, low-stock alerts, replacement suggestion for out-of-stock items (never clarified what exactly was meant).
+5. Known gaps and risks in the code
+• No idempotency on place_order (double click can create two orders).
+• Possible deadlock: rows are locked in cart order, not a fixed order.
+• update_order_status does not lock the order row.
+• Product.price is a FloatField; the code converts with Decimal(str(price)). A DecimalField would be correct.
+• "Add to cart" always picks the first store with stock, not the cheapest or nearest.
+• No pagination on products or orders.
+• get_product is marked "only for testing" with AllowAny.
+• CORS_ALLOWED_ORIGINS has no effect because corsheaders is not installed.
+• MAILERS in settings is not a real Django setting (the real one is EMAIL_BACKEND).
+• SECRET_KEY falls back to an insecure dev key if the environment variable is missing.
+• TIME_ZONE is UTC.
+• Totals serialise as "8.2", not "8.20"; tests compare as Decimal.
+• Test run takes about 48 seconds. Optional speed-up: the MD5 password hasher only when RUNNING_TESTS is true.
+• Debug print in merchant_orders was to be removed (you said fixes are done).
+• Earlier repo issues to confirm are gone: committed db.sqlite3, staticfiles and .pyc files.
+6. Codebase map
+Paths are relative to the repo root aforro_market/aforro_market. Paths marked (inferred) come from import statements or earlier notes, not from a directory listing Claude saw.
+Project package (aforro_market/)
+• aforro_market/settings.py: all settings. Secrets from environment through .env, DATABASE_URL and RUNNING_TESTS logic, CACHES block, allauth and Google login, whitenoise, django-vite, SITE_ID = 2, ALLOWED_HOSTS.
+• aforro_market/urls.py (inferred): admin/, accounts/ (allauth), user/, store/, and '' serving the React index.html.
+• aforro_market/wsgi.py: entry point used by Vercel.
+Stores app (stores/)
+• stores/models.py: Product, Store, Order (with Status choices), OrderItem, StoreProduct (per-store stock, unique on store and product).
+• stores/views.py: get_product, get_store, place_order, cancel_order, product_stores, my_orders, merchant_orders, update_order_status, plus OutOfStock, ALLOWED and can_move.
+• stores/urls.py: products, `` (stores), orders (POST), orders/<id>/cancel, products/<id>/stores, orders/list, orders/<id>/status, merchant/orders.
+• stores/serializer.py: ProductSerializer, StoreSerializer.
+• stores/tests.py: the seven test classes listed above.
+• stores/admin.py and stores/migrations/: exist; contents not seen.
+Accounts app (accounts/)
+• accounts/models.py: Merchant (linked to a user; a store's owner is a Merchant).
+• Also contains the user endpoints under user/ (current user, logout). Contents not seen.
+Frontend (React, Vite)
+Exact folder not confirmed; the layout below comes from the import statements, relative to the source folder that holds App.jsx.
+• App.jsx: top-level state (user, cart, page, search query), addToCart, checkout, page switching.
+• main.jsx (inferred): mounts <App/> and imports style.css.
+• api.js: getCookie and postJSON (adds the CSRF header, sends cookies).
+• theme.js: ui style strings and statusStyle badge colours.
+• components/Navbar.jsx: logo, My orders, cart icon with count, login or logout popup, search bar.
+• components/SearchBar.jsx: controlled search input with a clear button.
+• pages/Home.jsx: fetches products, filters by the typed words, groups by category, add to cart.
+• pages/Cart.jsx: cart lines, total, place order.
+• pages/MyOrders.jsx: customer's orders with a Cancel button.
+• pages/MerchantOrders.jsx: shopkeeper's orders with one "next step" button (corrected version supplied; not yet wired into App.jsx and Navbar.jsx as far as seen).
+Project root files
+• .env (local secrets, must stay out of git), .gitignore, requirements.txt (must include redis and gunicorn where needed), vercel.json, build.sh, package.json, manage.py, README.md.
+• Static files: static/ (for example static/logo/aforoo_logo.png) and staticfiles/ (collectstatic output, should not be committed). templates/ holds the page that loads the React build.
+7. API reference
+Method
+URL
+Who
+What it does
+GET
+/store/products
+anyone
+product list (cached 60 s when no q)
+GET
+/store/
+anyone
+stores with their products
+GET
+/store/products/<id>/stores
+anyone
+stores with stock for a product
+POST
+/store/orders
+logged in
+place an order (one per store, stock locked)
+GET
+/store/orders/list
+logged in
+the customer's own orders
+POST
+/store/orders/<id>/cancel
+order's customer
+cancel and restore stock
+GET
+/store/merchant/orders
+logged in
+orders for stores the user owns
+POST
+/store/orders/<id>/status
+store owner
+move an order one legal step forward
+8. Design decisions and why
+• Stock lives per store (StoreProduct), and a cart creates one order per store. Never convert the old Store.products many-to-many in place; backfill with a script.
+• Validate first, write inside atomic(), and lock stock rows with select_for_update() so two buyers cannot take the last item.
+• Price snapshot on OrderItem so old orders never change when prices change.
+• 404, not 403, for other people's orders, so existence is not leaked.
+• PROTECT for products, CASCADE for stores' stock rows.
+• Cache only what can be a little stale (product list). Never cache stock or orders.
+• Polling first for tracking because Vercel is serverless. WebSockets only as a local branch.
+• One codebase, not two apps: main deployed with polling, ws branch local with WebSockets.
+• Navigation without react-router, because Django only serves the React page at /.
+• Live partner location is one row per partner, overwritten. At scale it would move to Redis and send only when the partner moves.
+9. Interview honesty rules
+• Say clearly what is built and what is only designed (tracking, heat map, WebSockets, Docker, CI, merchant stock page).
+• Say "in my research I didn't find this", never "nobody has this", when comparing with Blinkit or Zepto.
+• Say "I used Redis as a cache", not "I'm a Redis expert".
+• Docker, if built, is for local use; do not say the live app runs on Docker.
+• Name the gaps in section 5 yourself before anyone finds them.
+10. Suggested next order
+1. Confirm the Redis outage guard and tests (expect 42 tests).
+2. CI with GitHub Actions and branch protection.
+3. Lock ordering, then idempotency.
+4. Merchant stock endpoint and tests, then wire Shop orders into App.jsx and Navbar.jsx.
+5. Repo clean-up and README.
+6. Delivery partners with polling on main.
+7. Docker and compose.
+8. ws branch with Channels, run locally.

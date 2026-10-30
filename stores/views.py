@@ -13,6 +13,10 @@ from django.db import transaction
 from decimal import Decimal
 from collections import defaultdict
 
+from django.core.cache import cache
+import warnings
+
+
 class OutOfStock(Exception):
     pass
 
@@ -32,20 +36,34 @@ def can_move(current, new):
 @permission_classes([AllowAny])#only for testing
 def get_product(request):
     q = str(request.query_params.get('q',''))
-    products = Product.objects.all()
+    
     if q:
+        products = Product.objects.all()
         product_list = []
         for product in products:
             words = product.product_name.lower().split()
     
             if get_close_matches(q, words) != []:
                 product_list.append(product)
+        return Response(ProductSerializer(product_list, many=True).data)
 
-        serializer = ProductSerializer(product_list, many = True)
-        return Response(serializer.data)
-        
-    serializer = ProductSerializer(products, many = True)# get all produts required feild
-    return Response(serializer.data)
+    data = None
+    try:
+        data = cache.get("products:all")
+    except Exception as e:
+        warnings.warn(f"Cache unable to get the data {e}")
+
+    if data is None:
+        products = Product.objects.all()
+        data = list(ProductSerializer(products, many = True).data)
+        try:
+            cache.set('products:all', data, 60)
+        except Exception as e:
+            warnings.warn(f"Cache unable to set the data {e}")
+    return Response(data)
+            
+    
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -66,7 +84,6 @@ def place_order(request):
     lines_by_store = defaultdict(list)
 
     for item in items:
-        # {"store_id": 1, "product_id": 3, "quantity": 2}
         
         store_id = item.get("store_id")
         product_id = item.get("product_id")
@@ -106,9 +123,6 @@ def place_order(request):
                 total = Decimal('0')
                 order = Order.objects.create(user = request.user, store = store)
                 for product, quantity in lines:
-                    # price = Decimal(str(product.price))
-                    # OrderItem.objects.create(order = order, product = product, quantity = quantity, price = price)
-                    # total += price*quantity
                     
                     row = StoreProduct.objects.select_for_update().get(store = store, product = product)
                     if row.stock < quantity:
@@ -215,6 +229,37 @@ def update_order_status(request, order_id):
     order.status = new_status
     order.save()
     return Response({"id": order.id, "status": order.status})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def merchant_orders(request):
+
+    orders = (Order.objects.filter(store__owner__user=request.user)
+          .select_related('store', 'user')
+          .prefetch_related('items__product')
+          .order_by('-created_at'))
+                                  
+    result = []
+    for order in orders:
+        items = []
+        total = Decimal('0')
+        for item in order.items.all():
+            items.append({"name": item.product.product_name, "quantity": item.quantity, "price": str(item.price)})
+            total += item.price * item.quantity
+
+        result.append({
+            "id": order.id,
+            "customer": order.user.username,
+            "store": order.store.store_name,
+            "status": order.status,
+            "created_at": order.created_at.isoformat(),
+            "items": items,
+            "total": str(total),
+        })
+        
+    return Response(result)
+
 
 
 

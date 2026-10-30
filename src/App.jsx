@@ -4,6 +4,7 @@ import Home from './pages/Home';
 import { postJSON } from './api';
 import Cart from './pages/Cart';
 import MyOrders from './pages/MyOrders';
+import MerchantOrders from './pages/MerchantOrders';
 import { ui } from './theme';
 
 function App() {
@@ -75,11 +76,13 @@ function App() {
         onCartClick={() => setPage('cart')}
         onOrdersClick={() => setPage('orders')}
         onLogoClick={() => setPage('home')}
+        onMerchantOrdersClick={() => setPage('merchant_orders')}
         />
       <main className={ui.container + ' py-6'}>
         {page === 'home' && <Home addToCart={addToCart} query={query} />}
         {page === 'cart' && <Cart cart={cart} onCheckout={checkout} onBack={() => setPage('home')} />}
         {page === 'orders' && <MyOrders onBack={() => setPage('home')} />}
+        {page === 'merchant_orders' && <MerchantOrders onBack={() => setPage('home')} />}
       </main>
     </div>
   );

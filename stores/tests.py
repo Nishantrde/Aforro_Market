@@ -10,6 +10,9 @@ from .models import Order, OrderItem, Product, Store, StoreProduct
 from django.test import SimpleTestCase
 from .views import can_move
 
+from django.core.cache import cache
+from unittest import mock
+
 class PlaceOrderTests(TestCase):
 
     def setUp(self):
@@ -308,5 +311,99 @@ class UpdateOrderStatusTests(TestCase):
         self.client.force_login(self.customer)
         response = self.post_status("CONFIRMED")
         self.assertEqual(response.status_code, 404)
+
+class MerchantOrdersTests(TestCase):
+
+    def setUp(self):
+        User = get_user_model()
+        self.customer = User.objects.create_user(username="nishant", password="pass12345")
+        self.owner = User.objects.create_user(username="shopkeeper", password="pass12345")
+        self.other_owner = User.objects.create_user(username="shopkeeper2", password="pass12345")
+        merchant = Merchant.objects.create(user=self.owner)
+        Merchant.objects.create(user=self.other_owner)
+
+        self.store1 = Store.objects.create(owner=merchant, store_name="Sharma Kirana")
+        self.order = Order.objects.create(user=self.customer, store=self.store1)
+
+        self.client = APIClient()
+        self.client.force_login(self.owner)
+
+    def test_owner_sees_order_for_his_store(self):
+        response = self.client.get("/store/merchant/orders")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["id"], self.order.id)
+        self.assertEqual(data[0]["customer"], "nishant")
+
+    def test_other_shopkeeper_sees_nothing(self):
+        self.client.force_login(self.other_owner)
+        response = self.client.get("/store/merchant/orders")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+
+    def test_customer_sees_nothing(self):
+        self.client.force_login(self.customer)
+        response = self.client.get("/store/merchant/orders")
+        self.assertEqual(response.status_code, 200) 
+        self.assertEqual(response.json(), [])
+
+    def test_requires_login(self):
+        anonymous = APIClient()
+        response = anonymous.get("/store/merchant/orders")
+        self.assertIn(response.status_code, (401, 403))
+
+class ProductCacheTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        User = get_user_model()
+        self.milk = Product.objects.create(product_name = "Milk", category="Groceries", price=2.50)
+        shopkeeper = User.objects.create_user(username="shopkeeper", password="pass12345")
+        merchant = Merchant.objects.create(user=shopkeeper)
+        self.store1 = Store.objects.create(owner=merchant, store_name="Sharma Kirana")
+        self.stock_row = StoreProduct.objects.create(store = self.store1, product = self.milk, stock = 10)
+        self.client = APIClient()
+
+    def test_second_call_dose_not_hit_database(self):
+        self.client.get("/store/products")
+        with self.assertNumQueries(0):
+            responce = self.client.get("/store/products")
+        self.assertEqual(responce.status_code, 200)
+
+    def test_cached_list_is_stale_until_cache_clears(self):
+        self.client.get('/store/products')
+        self.milk.product_name = "Oat Milk"
+        self.milk.save()
+        responce = self.client.get('/store/products')
+        self.assertEqual(responce.json()[0]["product_name"], "Milk")
+        cache.clear()
+        responce = self.client.get('/store/products')
+        self.assertEqual(responce.json()[0]["product_name"], "Oat Milk")
+
+    def test_stock_is_never_cached(self):
+        url = f'/store/products/{self.milk.id}/stores'
+        responce = self.client.get(url)
+        self.assertEqual(responce.json()[0]["stock"], 10)
+
+        self.stock_row.stock = 4
+        self.stock_row.save()
+
+        responce =  self.client.get(f'/store/products/{self.milk.id}/stores')
+        self.assertEqual(responce.json()[0]["stock"], 4)
+
+    def test_products_still_works_well_when_cache_get_fails(self):
+        with mock.patch("stores.views.cache.get", side_effect = Exception("redis down")):
+            responce = self.client.get("/store/products")
+        self.assertEqual(responce.status_code, 200)
+        self.assertEqual(responce.json()[0]["product_name"], "Milk")
+
+    def test_products_still_works_well_when_cache_set_fails(self):
+            with mock.patch("stores.views.cache.set", side_effect = Exception("redis down")):
+                responce = self.client.get("/store/products")
+            self.assertEqual(responce.status_code, 200)
+            self.assertEqual(responce.json()[0]["product_name"], "Milk")
+    
+                    
+        
 
 
