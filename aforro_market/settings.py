@@ -151,7 +151,7 @@ if REDIS_URL and not RUNNING_TESTS:
                 'socket_timeout': 1,
             },
         }
-    }
+    }   
 else:
     CACHES = {
         'default': {
