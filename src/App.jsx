@@ -6,6 +6,7 @@ import Cart from './pages/Cart';
 import MyOrders from './pages/MyOrders';
 import MerchantOrders from './pages/MerchantOrders';
 import { ui } from './theme';
+import MerchantStock from './pages/MerchantStock';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -83,12 +84,15 @@ function App() {
         onOrdersClick={() => setPage('orders')}
         onLogoClick={() => setPage('home')}
         onMerchantOrdersClick={() => setPage('merchant_orders')}
+        onMerchantStockClick={() => setPage('merchant_stock')}
         />
       <main className={ui.container + ' py-6'}>
         {page === 'home' && <Home addToCart={addToCart} query={query} />}
         {page === 'cart' && <Cart cart={cart} onCheckout={checkout} placing={placing} onBack={() => setPage('home')} />}
         {page === 'orders' && <MyOrders onBack={() => setPage('home')} />}
         {page === 'merchant_orders' && <MerchantOrders onBack={() => setPage('home')} />}
+        {page === 'merchant_stock' && <MerchantStock onBack={() => setPage('home')} />}
+
       </main>
     </div>
   );
