@@ -17,6 +17,22 @@ from django.core.cache import cache
 import warnings
 
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+
+def broadcast_stock(store_id, product_id, stock):
+    try:
+        layer = get_channel_layer()
+        async_to_sync(layer.group_send)("stock", {
+            "type": "stock.update",
+            "store_id": store_id,
+            "product_id": product_id,
+            "stock": stock,
+        })
+    except Exception as e:
+        warnings.warn(f"Stock broadcast failed: {e}")
+
+
 class OutOfStock(Exception):
     pass
 
@@ -146,6 +162,9 @@ def place_order(request):
                         raise OutOfStock(f"only {row.stock} left of {product.product_name}")
                     row.stock -= quantity
                     row.save()
+                    transaction.on_commit(
+                        lambda s=store.id, p=product.id, st=row.stock: broadcast_stock(s, p, st)
+                    )
                     price = Decimal(str(product.price))
                     OrderItem.objects.create(order = order, product = product, quantity = quantity, price = price)
                     total += price*quantity
@@ -191,6 +210,9 @@ def cancel_order(request, order_id):
             row = StoreProduct.objects.select_for_update().get(store = locked.store, product = item.product)
             row.stock += item.quantity
             row.save()
+            transaction.on_commit(
+                lambda s=locked.store_id, p=item.product_id, st=row.stock: broadcast_stock(s, p, st)
+            )
         locked.status = Order.Status.CANCELLED
         locked.save()
     return Response({"id": locked.id, "status": locked.status}, status=status.HTTP_200_OK)
@@ -303,6 +325,7 @@ def update_stock(request):
             return Response({"error":"product not sold here"}, status=status.HTTP_404_NOT_FOUND) 
         row.stock = new_stock
         row.save()
+        transaction.on_commit(lambda: broadcast_stock(store.id, row.product_id, row.stock))
 
     return Response({"store_id": store.id, "product_id": product_id, "stock": row.stock})
 

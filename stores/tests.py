@@ -188,6 +188,14 @@ class PlaceOrderTests(TestCase):
         row = StoreProduct.objects.get(store=self.store1, product=self.milk)
         self.assertEqual(row.stock, 10)
 
+    def test_order_broadcasts_remaining_stock(self):
+        with mock.patch("stores.views.broadcast_stock") as fake:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.post_cart([
+                    {"store_id": self.store1.id, "product_id": self.milk.id, "quantity": 1}
+                ])
+        self.assertEqual(response.status_code, 201)
+        fake.assert_called_once_with(self.store1.id, self.milk.id, 9)
 
 class CancelOrderTests(TestCase):
 
@@ -523,6 +531,14 @@ class MerchantStockTest(TestCase):
         response = self.client.get("/store/merchant/stock/list")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
+
+    def test_update_stock_broadcasts_new_number(self):
+        with mock.patch("stores.views.broadcast_stock") as fake:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.post_stock(25)
+        self.assertEqual(response.status_code, 200)
+        fake.assert_called_once_with(self.store1.id, self.milk.id, 25)
+
                      
         
 

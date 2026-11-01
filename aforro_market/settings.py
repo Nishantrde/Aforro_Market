@@ -38,6 +38,9 @@ SITE_ID = 2
 # Application definition
 
 INSTALLED_APPS = [
+
+    'daphne',
+
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -55,8 +58,17 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
+
+    'channels', 
     
 ]
+
+ASGI_APPLICATION = 'aforro_market.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'},
+}
+
 
 SOCIALACCOUNT_PROVIDERS = {
     'google':{
