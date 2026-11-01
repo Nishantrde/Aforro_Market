@@ -13,7 +13,7 @@ export function getCookie(name){
     return cookieValue;
 }
 
-export async function postJSON(url, body){
+export async function postJSON(url, body, extraHeaders = {}){
     const csrftoken = getCookie('csrftoken')
     try{
         const responce = await fetch(url, {
@@ -21,7 +21,7 @@ export async function postJSON(url, body){
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': csrftoken,
-                    extraHeaders,
+                    ...extraHeaders,
                 },
                 credentials: 'include',
                 body: JSON.stringify(body)

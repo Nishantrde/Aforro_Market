@@ -43,6 +43,7 @@ function App() {
     setPlacing(true);
     const key = crypto.randomUUID();
     const { ok, data } = await postJSON('/store/orders', { items: cart }, { 'Idempotency-Key': key });
+    setPlacing(false)
     if (ok) {
       setCart([]);
       setPage('orders');
