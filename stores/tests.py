@@ -456,8 +456,74 @@ class ProductCacheTests(TestCase):
                 responce = self.client.get("/store/products")
             self.assertEqual(responce.status_code, 200)
             self.assertEqual(responce.json()[0]["product_name"], "Milk")
-    
-                    
+
+class MerchantStockTest(TestCase):
+
+    def setUp(self):
+        User = get_user_model()
+        self.customer = User.objects.create_user(username="nishant", password="pass12345")
+        self.owner = User.objects.create_user(username="shopkeeper", password="pass12345")
+        self.other_owner = User.objects.create_user(username="shopkeeper2", password="pass12345")
+        merchant = Merchant.objects.create(user=self.owner)
+        Merchant.objects.create(user=self.other_owner)
+
+        self.store1 = Store.objects.create(owner=merchant, store_name="Sharma Kirana")
+        self.milk = Product.objects.create(product_name="Milk", category="Groceries", price=2.50)
+        self.stock_row = StoreProduct.objects.create(store=self.store1, product=self.milk, stock=10)
+
+        self.client = APIClient()
+        self.client.force_login(self.owner)
+
+    def post_stock(self, stock):
+        return self.client.post(
+            "/store/merchant/stock",
+            {"store_id": self.store1.id, "product_id": self.milk.id, "stock": stock},
+            format="json",
+        )
+
+    def test_owner_can_update_stock(self):
+        response = self.post_stock(25)
+        self.assertEqual(response.status_code, 200)
+        self.stock_row.refresh_from_db()
+        assert self.stock_row.stock == 25
+
+    def test_other_shopkeeper_gets_404(self):
+        self.client.force_login(self.other_owner)
+        response = self.post_stock(25)
+        self.assertEqual(response.status_code, 404)
+        self.stock_row.refresh_from_db()
+        self.assertEqual(self.stock_row.stock, 10)
+
+    def test_negative_stock_is_rejected(self):
+        response = self.post_stock(-25)
+        self.assertEqual(response.status_code, 400)
+        self.stock_row.refresh_from_db()
+        self.assertEqual(self.stock_row.stock, 10)
+
+    def test_requires_login(self):
+        anonymous = APIClient()
+        response = anonymous.post(
+            "/store/merchant/stock",
+            {"store_id": self.store1.id, "product_id": self.milk.id, "stock": 25},
+            format="json",
+        )
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_owner_sees_own_stock_rows(self):
+        response = self.client.get("/store/merchant/stock/list")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["name"], "Milk")
+        self.assertEqual(data[0]["stock"], 10)
+        self.assertEqual(data[0]["store_id"], self.store1.id)
+
+    def test_other_shopkeeper_sees_empty_list(self):
+        self.client.force_login(self.other_owner)
+        response = self.client.get("/store/merchant/stock/list")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+                     
         
 
 

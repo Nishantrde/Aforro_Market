@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import get_product, get_store, place_order, cancel_order, product_stores, my_orders, update_order_status, merchant_orders
+from .views import get_product, get_store, place_order, cancel_order, product_stores, my_orders, update_order_status, merchant_orders, update_stock, merchant_stock
+
 
 urlpatterns = [
     path("products", get_product, name="get_product"),
@@ -10,5 +11,8 @@ urlpatterns = [
     path("orders/list", my_orders, name="my_orders"),
     path("orders/<int:order_id>/status", update_order_status, name="update_order_status"),
     path("merchant/orders", merchant_orders, name="merchant_orders"),
+    path("merchant/stock", update_stock, name="update_stock"),
+    path("merchant/stock/list", merchant_stock, name="merchant_stock"),
+        
 ]
 

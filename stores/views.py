@@ -278,7 +278,47 @@ def merchant_orders(request):
         
     return Response(result)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_stock(request):
+    store_id = request.data.get('store_id')
+    product_id = request.data.get('product_id')
+    new_stock = request.data.get('stock')
+    try:
+        new_stock = int(new_stock)
+    except (ValueError, TypeError):
+        return Response({"error": "stock must be a whole number"}, status=status.HTTP_400_BAD_REQUEST)
 
+    if new_stock < 0:
+        return Response({"error": "stock can't be negative"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    store = Store.objects.filter(id=store_id, owner__user=request.user).first()
+
+    if store is None:
+        return Response({"error":"store not found"}, status=status.HTTP_404_NOT_FOUND) 
+
+    with transaction.atomic():
+        row = StoreProduct.objects.select_for_update().filter(store=store, product_id=product_id).first()
+        if row is None:
+            return Response({"error":"product not sold here"}, status=status.HTTP_404_NOT_FOUND) 
+        row.stock = new_stock
+        row.save()
+
+    return Response({"store_id": store.id, "product_id": product_id, "stock": row.stock})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def merchant_stock(request):
+    rows = (StoreProduct.objects
+            .filter(store__owner__user=request.user)
+            .select_related('store', 'product')
+            .order_by('store_id', 'product__product_name'))
+    stockList = []
+    for row in rows:
+        stockList.append({"store_id": row.store_id, "store": row.store.store_name,
+       "product_id": row.product_id, "name": row.product.product_name,
+       "stock": row.stock})
+    return Response(stockList)
 
 
 
