@@ -21,6 +21,7 @@ export async function postJSON(url, body){
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': csrftoken,
+                    extraHeaders,
                 },
                 credentials: 'include',
                 body: JSON.stringify(body)

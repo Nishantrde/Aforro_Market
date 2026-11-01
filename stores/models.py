@@ -65,3 +65,15 @@ class StoreProduct(models.Model):
     def __str__(self):
         return f"{self.store} - {self.product} ({self.stock})"
 
+class IdempotencyKey(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    key = models.CharField(max_length=100)
+    response = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "key"], name='unique_user_key')
+        ]
+
+

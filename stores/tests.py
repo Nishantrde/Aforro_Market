@@ -13,6 +13,9 @@ from .views import can_move
 from django.core.cache import cache
 from unittest import mock
 
+import uuid
+
+
 class PlaceOrderTests(TestCase):
 
     def setUp(self):
@@ -39,7 +42,7 @@ class PlaceOrderTests(TestCase):
         self.client.force_login(self.customer)
 
     def post_cart(self, items):
-        return self.client.post("/store/orders", {"items": items}, format="json")
+        return self.client.post("/store/orders", {"items": items}, format="json", HTTP_IDEMPOTENCY_KEY=str(uuid.uuid4()))
 
     def test_valid_order_has_correct_total(self):
         response = self.post_cart([
@@ -132,7 +135,58 @@ class PlaceOrderTests(TestCase):
         response = self.client.get(f"/store/products/{eggs.id}/stores")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
-                
+
+    def test_cart_order_does_not_matter(self):
+        responce = self.post_cart([
+            {"store_id": self.store1.id, "product_id": self.bread.id, "quantity": 1},
+            {"store_id": self.store1.id, "product_id": self.milk.id, "quantity": 1}
+        ])
+        self.assertEqual(responce.status_code, 201)
+        milk_row = StoreProduct.objects.get(store=self.store1, product=self.milk)
+        bread_row = StoreProduct.objects.get(store=self.store1, product=self.bread)
+        self.assertEqual(milk_row.stock, 9)
+        self.assertEqual(bread_row.stock, 9)
+
+    def test_same_key_twice_place_one_order(self):
+        key = "abc-123"
+        items = [{"store_id": self.store1.id, "product_id": self.milk.id, "quantity": 1}]
+
+        first = self.client.post("/store/orders", {"items": items}, format="json", HTTP_IDEMPOTENCY_KEY=key)
+        second = self.client.post("/store/orders", {"items": items}, format="json", HTTP_IDEMPOTENCY_KEY=key)
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(Order.objects.count(), 1)
+
+        row = StoreProduct.objects.get(store=self.store1, product=self.milk)
+        self.assertEqual(row.stock, 9)          # not 8
+        self.assertEqual(first.json()[0]["id"], second.json()[0]["id"])
+
+    def test_different_keys_place_two_orders(self):
+        items = [{"store_id": self.store1.id, "product_id": self.milk.id, "quantity": 1}]
+
+        first = self.client.post("/store/orders", {"items": items}, format="json",
+                                 HTTP_IDEMPOTENCY_KEY="key-1")
+        second = self.client.post("/store/orders", {"items": items}, format="json",
+                                  HTTP_IDEMPOTENCY_KEY="key-2")
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 201)
+        self.assertEqual(Order.objects.count(), 2)
+
+        row = StoreProduct.objects.get(store=self.store1, product=self.milk)
+        self.assertEqual(row.stock, 8)
+
+    def test_missing_key_is_rejected(self):
+        items = [{"store_id": self.store1.id, "product_id": self.milk.id, "quantity": 1}]
+
+        response = self.client.post("/store/orders", {"items": items}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Order.objects.count(), 0)
+
+        row = StoreProduct.objects.get(store=self.store1, product=self.milk)
+        self.assertEqual(row.stock, 10)
 
 
 class CancelOrderTests(TestCase):

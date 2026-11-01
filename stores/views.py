@@ -5,11 +5,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from .models import Product, Store, Order, OrderItem, StoreProduct
+from .models import Product, Store, Order, OrderItem, StoreProduct, IdempotencyKey
 from .serializer import ProductSerializer, StoreSerializer
 
 from difflib import get_close_matches
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from decimal import Decimal
 from collections import defaultdict
 
@@ -20,6 +20,7 @@ import warnings
 class OutOfStock(Exception):
     pass
 
+#stores the upcoming status as a value and current status as a key (current_status:upcoming_status)
 ALLOWED = {
     "PLACED": ["CONFIRMED"],
     "CONFIRMED": ["PACKED"],
@@ -27,17 +28,18 @@ ALLOWED = {
     "OUT_FOR_DELIVERY": ["DELIVERED"],
 }
 
+#varifies that if 'new_status' is the value of the key 'current'
+def can_move(current, new_status):
+    return new_status in ALLOWED.get(current, [])
 
-def can_move(current, new):
-    return new in ALLOWED.get(current, [])
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])#only for testing
+@permission_classes([AllowAny])#all show the products if the user is not loged in
 def get_product(request):
     q = str(request.query_params.get('q',''))
     
-    if q:
+    if q:# get close match of product
         products = Product.objects.all()
         product_list = []
         for product in products:
@@ -47,12 +49,15 @@ def get_product(request):
                 product_list.append(product)
         return Response(ProductSerializer(product_list, many=True).data)
 
+    #cache the data in upstash Redis
     data = None
+    #Get the cache from Redis or else throw warning
     try:
         data = cache.get("products:all")
     except Exception as e:
         warnings.warn(f"Cache unable to get the data {e}")
 
+    #if data was None, not cached or got expired set the cache for 60 sec by finding it from Serializer
     if data is None:
         products = Product.objects.all()
         data = list(ProductSerializer(products, many = True).data)
@@ -61,9 +66,6 @@ def get_product(request):
         except Exception as e:
             warnings.warn(f"Cache unable to set the data {e}")
     return Response(data)
-            
-    
-
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -74,14 +76,28 @@ def get_store(request):
     return Response(serializer.data)
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated])# only authenticated users could place the order
 def place_order(request):
+
+    # To prevent duplicate orders we are using Idempotency key which we will from React frontend 
+    key = request.headers.get("Idempotency-Key")
+    if not key:# if key is not present we will send 400 status code 
+        return Response({"error": "Idempotency-Key header required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # it searches the key with the user if it exists we will return the saved responce othervise we will create IdempotencyKey object for the order
+    saved = IdempotencyKey.objects.filter(user=request.user, key=key).first()
+    if saved:
+        return Response(saved.response, status=200)
+
+
+    #collect the list of product with store and quantity {"store_id": 1, "product_id": 10, "quantity": 2},
     items = request.data.get('items', [])
     
-    if not items:
+    if not items:# if cart was empty return 400 bad request
         return Response({"error":"Empty cart"}, status=status.HTTP_400_BAD_REQUEST)
+
     
-    lines_by_store = defaultdict(list)
+    lines_by_store = defaultdict(list)# using the default dict because some time we have to make keys and append the list at the same time even if the dose not exists
 
     for item in items:
         
@@ -119,10 +135,11 @@ def place_order(request):
         with transaction.atomic():
             created = []
             
-            for store, lines in lines_by_store.items():
+            for store, lines in sorted(lines_by_store.items(), key=lambda pair: pair[0].id):
                 total = Decimal('0')
                 order = Order.objects.create(user = request.user, store = store)
-                for product, quantity in lines:
+
+                for product, quantity in sorted(lines, key=lambda line: line[0].id):
                     
                     row = StoreProduct.objects.select_for_update().get(store = store, product = product)
                     if row.stock < quantity:
@@ -132,7 +149,6 @@ def place_order(request):
                     price = Decimal(str(product.price))
                     OrderItem.objects.create(order = order, product = product, quantity = quantity, price = price)
                     total += price*quantity
-                    
 
                 created.append(
                     {
@@ -142,10 +158,16 @@ def place_order(request):
                         "total": str(total),            
                     }
                 )
+            IdempotencyKey.objects.create(user=request.user, key=key, response=created)
 
     except OutOfStock as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    except IntegrityError:
+        saved = IdempotencyKey.objects.filter(user=request.user, key=key).first()
+        if saved:
+            return Response(saved.response, status=200)
+        raise
 
     return Response(created, status=status.HTTP_201_CREATED)
 
@@ -160,10 +182,6 @@ def cancel_order(request, order_id):
     if order.status not in (Order.Status.PLACED, Order.Status.CONFIRMED):
         return Response({"error":f"order can't be cancelled because order is in {order.status}"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # order.status = Order.Status.CANCELLED
-    # order.save()
-
-    # return Response({"id":order.id, "status":order.status}, status=status.HTTP_200_OK)
 
     with transaction.atomic():
         locked = Order.objects.select_for_update().get(id=order.id)

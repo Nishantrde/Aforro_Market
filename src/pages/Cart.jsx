@@ -33,7 +33,7 @@ export default function Cart({ cart, onCheckout, onBack }) {
       </div>
       <div className="flex gap-3">
         <button onClick={onBack} className={ui.btnGhost}>Back</button>
-        <button onClick={onCheckout} className={ui.btn + ' flex-1'}>Place order</button>
+        <button onClick={onCheckout} disabled={placing} className={ui.btn + ' flex-1'}>{placing ? 'Placing...':'Place Order'}</button>
       </div>
     </div>
   );

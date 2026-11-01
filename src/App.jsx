@@ -13,6 +13,7 @@ function App() {
   const [cart, setCart] = useState([]);
   const [page, setPage] = useState('home');
   const [query, setQuery] = useState('');
+  const [placing, setPlacing] = useState(false);
 
   function addToCart(storeId, product) {
     setCart(prev => {
@@ -37,7 +38,11 @@ function App() {
   async function checkout() {
     if (!user) return alert('Please login first');
     if (cart.length === 0) return alert('Cart is empty');
-    const { ok, data } = await postJSON('/store/orders', { items: cart });
+    if (placing) return;
+
+    setPlacing(true);
+    const key = crypto.randomUUID();
+    const { ok, data } = await postJSON('/store/orders', { items: cart }, { 'Idempotency-Key': key });
     if (ok) {
       setCart([]);
       setPage('orders');
@@ -80,7 +85,7 @@ function App() {
         />
       <main className={ui.container + ' py-6'}>
         {page === 'home' && <Home addToCart={addToCart} query={query} />}
-        {page === 'cart' && <Cart cart={cart} onCheckout={checkout} onBack={() => setPage('home')} />}
+        {page === 'cart' && <Cart cart={cart} onCheckout={checkout} placing={placing} onBack={() => setPage('home')} />}
         {page === 'orders' && <MyOrders onBack={() => setPage('home')} />}
         {page === 'merchant_orders' && <MerchantOrders onBack={() => setPage('home')} />}
       </main>
