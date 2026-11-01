@@ -1,6 +1,6 @@
 import { ui } from '../theme';
 
-export default function Cart({ cart, onCheckout, onBack }) {
+export default function Cart({ cart, onCheckout, onBack, placing }) {
   const total = cart.reduce((sum, line) => sum + line.price * line.quantity, 0);
 
   if (cart.length === 0) {
