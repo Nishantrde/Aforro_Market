@@ -3,6 +3,8 @@ import { ui } from '../theme';
 
 function Home({ addToCart, query = '' }) {
   const [products, setProducts] = useState([]);
+  const [stock, setStock] = useState({});
+  const [stockLoaded, setStockLoaded] = useState(false);
 
   useEffect(() => {
     fetch('/store/products')
@@ -10,6 +12,30 @@ function Home({ addToCart, query = '' }) {
       .then(data => setProducts(data))
       .catch(err => console.error(err));
   }, []);
+
+  useEffect(() => {
+    fetch('/store/stock')
+      .then(res => res.json())
+      .then(data => {
+        const map = {};
+        data.forEach(r => { map[r.store_id + '-' + r.product_id] = r.stock; });
+        setStock(map);
+        setStockLoaded(true);
+      })
+      .catch(err => console.error(err));
+  }, []);
+
+  useEffect(() => {
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${window.location.host}/ws/stock/`);
+    ws.onmessage = (e) => {
+      const m = JSON.parse(e.data);
+      setStock(prev => ({ ...prev, [m.store_id + '-' + m.product_id]: m.stock }))
+    };
+    return () => ws.close();
+  }, []);
+
+
 
   // Every typed word must appear in the product name. Empty query shows all.
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -35,6 +61,15 @@ function Home({ addToCart, query = '' }) {
     }
   }
 
+    function totalFor(productId) {
+    let sum = 0;
+    for (const key in stock) {
+      if (key.endsWith('-' + productId)) sum += stock[key];
+    }
+    return sum;
+  }
+
+
   return (
     <div className="space-y-8">
       {words.length > 0 && visible.length === 0 && (
@@ -49,6 +84,12 @@ function Home({ addToCart, query = '' }) {
                 <div>
                   <p className="font-semibold text-stone-900">{item.product_name}</p>
                   <p className="mt-1 text-lg font-bold text-green-700">₹{item.price}</p>
+                  {stockLoaded && (() => {
+                    const total = totalFor(item.id);
+                    if (total === 0) return <p className="text-sm font-semibold text-red-600">Out of stock</p>;
+                    if (total <= 5) return <p className="text-sm font-semibold text-amber-600">Only {total} left</p>;
+                    return null;
+                  })()}
                 </div>
                 <button onClick={() => handelBuy(item)} className={ui.btn + ' w-full'}>
                   Add to cart

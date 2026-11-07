@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import get_product, get_store, place_order, cancel_order, product_stores, my_orders, update_order_status, merchant_orders, update_stock, merchant_stock
+from .views import get_product, get_store, place_order, cancel_order, product_stores, my_orders, update_order_status, merchant_orders, update_stock, merchant_stock, all_stock, partner_online, partner_offline, partner_order
 
 
 urlpatterns = [
@@ -13,6 +13,9 @@ urlpatterns = [
     path("merchant/orders", merchant_orders, name="merchant_orders"),
     path("merchant/stock", update_stock, name="update_stock"),
     path("merchant/stock/list", merchant_stock, name="merchant_stock"),
-        
+    path("stock", all_stock, name="all_stock"),
+    path("partner/online", partner_online, name="partner_online"),
+    path("partner/offline", partner_offline, name="partner_offline"),
+    path("partner/order", partner_order, name="partner_order"),
 ]
 

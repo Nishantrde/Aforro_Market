@@ -4,8 +4,10 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from accounts.models import Merchant
+from accounts.models import Merchant, DeliveryPartner
 from .models import Order, OrderItem, Product, Store, StoreProduct
+from .locations import MemoryLocations
+from .matching import nearest
 
 from django.test import SimpleTestCase
 from .views import can_move
@@ -539,7 +541,144 @@ class MerchantStockTest(TestCase):
         self.assertEqual(response.status_code, 200)
         fake.assert_called_once_with(self.store1.id, self.milk.id, 25)
 
-                     
-        
+class AllStockTests(TestCase):
+
+    def setUp(self):
+        User = get_user_model()
+        self.owner = User.objects.create_user(username="shopkeeper", password="pass12345")
+        merchant = Merchant.objects.create(user=self.owner)
+        self.store1 = Store.objects.create(owner=merchant, store_name="Sharma Kirana")
+        self.milk = Product.objects.create(product_name="Milk", category="Groceries", price=2.50)
+        self.stock_row = StoreProduct.objects.create(store=self.store1, product=self.milk, stock=10)
+        self.client = APIClient()   # not logged in on purpose
+
+    def test_returns_rows_without_login(self):
+        response = self.client.get("/store/stock")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["stock"], 10)
+        self.assertEqual(data[0]["store_id"], self.store1.id)
+
+    def test_empty_when_no_stock_rows(self):
+        StoreProduct.objects.all().delete()
+        response = self.client.get(
+                    "/store/stock",
+                )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+
+class MemoryLocationsTests(SimpleTestCase):
+
+    def test_update_then_all(self):
+        loc = MemoryLocations()
+        loc.update(1, 12.9, 77.6)
+        self.assertEqual(loc.all(), [(1, 12.9, 77.6)])
+
+    def test_update_overwrites(self):
+        loc = MemoryLocations()
+        loc.update(1, 12.9, 77.6)
+        loc.update(1, 12.8, 77.4)
+        self.assertEqual(loc.all(), [(1, 12.8, 77.4)])
+
+    def test_remove(self):
+        loc = MemoryLocations()
+        loc.update(1, 12.9, 77.6)
+        loc.remove(1)
+        self.assertEqual(loc.all(), [])
+
+    def test_remove_missing_id_is_safe(self):
+        loc = MemoryLocations()
+        loc.remove(99)               
+        self.assertEqual(loc.all(), [])
+
+class NearestTests(SimpleTestCase):
+
+    def test_nearest_wins(self):
+        riders = [(1, 12.97, 77.59), (2, 13.20, 77.80)]
+        assert nearest(riders, 12.971, 77.591) == 1
+
+    def test_empty_returns_none(self):
+        assert nearest([], 12.9, 77.6) is None
+
+    def test_tie_picks_smallest_id(self):
+        riders = [(5, 12.97, 77.59), (3, 12.97, 77.59)]
+        assert nearest(riders, 12.97, 77.59) == 3
+
+class AutoAssignTests(TestCase):
+
+    def setUp(self):
+        User = get_user_model()
+        self.customer = User.objects.create_user(username="nishant", password="pass12345")
+        self.owner = User.objects.create_user(username="shopkeeper", password="pass12345")
+        merchant = Merchant.objects.create(user=self.owner)
+        self.store = Store.objects.create(
+            owner=merchant, store_name="Sharma Kirana", latitude=12.97, longitude=77.59
+        )
+        self.order = Order.objects.create(user=self.customer, store=self.store, status="CONFIRMED")
+
+        u1 = User.objects.create_user(username="rider1", password="pass12345")
+        u2 = User.objects.create_user(username="rider2", password="pass12345")
+        self.p1 = DeliveryPartner.objects.create(user=u1, online=True)
+        self.p2 = DeliveryPartner.objects.create(user=u2, online=True)
+
+        self.locs = MemoryLocations()
+        patcher = mock.patch("stores.views.locations", self.locs)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        self.client = APIClient()
+        self.client.force_login(self.owner)
+
+    def pack(self, order):
+        return self.client.post(
+            f"/store/orders/{order.id}/status", {"status": "PACKED"}, format="json"
+        )
+
+    def test_nearest_rider_is_assigned(self):
+        self.locs.update(self.p1.id, 12.971, 77.591)   # near
+        self.locs.update(self.p2.id, 13.20, 77.80)     # far
+        response = self.pack(self.order)
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.partner, self.p1)
+
+    def test_no_riders_leaves_partner_empty(self):
+        response = self.pack(self.order)
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, "PACKED")
+        self.assertIsNone(self.order.partner)
+
+    def test_busy_rider_is_skipped(self):
+        self.locs.update(self.p1.id, 12.971, 77.591)   # nearer
+        self.locs.update(self.p2.id, 13.20, 77.80)
+        Order.objects.create(
+            user=self.customer, store=self.store, status="PACKED", partner=self.p1
+        )
+        response = self.pack(self.order)
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.partner, self.p2)
+
+    def test_offline_rider_is_skipped(self):
+        self.locs.update(self.p1.id, 12.971, 77.591)
+        self.locs.update(self.p2.id, 13.20, 77.80)
+        self.p1.online = False
+        self.p1.save()
+        response = self.pack(self.order)
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.partner, self.p2)
+
+    def test_store_without_coordinates_does_not_crash(self):
+        self.store.latitude = None
+        self.store.longitude = None
+        self.store.save()
+        self.locs.update(self.p1.id, 12.971, 77.591)
+        response = self.pack(self.order)
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertIsNone(self.order.partner)
 
 

@@ -1,5 +1,5 @@
 from django.db import models
-from accounts.models import Merchant
+from accounts.models import Merchant, DeliveryPartner
 from django.conf import settings
 
 
@@ -17,6 +17,8 @@ class Store(models.Model):
     address = models.TextField(blank=True, null=True, default="Dhanbad")
     created_at = models.DateTimeField(auto_now_add=True)
     products = models.ManyToManyField(Product, blank=True, related_name="stores")
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
 
     def __str__(self):
         return str(self.store_name)
@@ -35,6 +37,7 @@ class Order(models.Model):
     store = models.ForeignKey(Store, on_delete=models.PROTECT, related_name='orders')
     status = models.CharField(max_length=250, choices=Status.choices, default=Status.PLACED)
     created_at = models.DateTimeField(auto_now_add=True)
+    partner = models.ForeignKey(DeliveryPartner, null=True, blank=True, on_delete=models.SET_NULL, related_name='orders')
     
     def __str__(self):
         return f"Order {self.id} by {self.user}"
@@ -60,7 +63,6 @@ class StoreProduct(models.Model):
                 name='unique_store_product',         
             )
         ]
-
 
     def __str__(self):
         return f"{self.store} - {self.product} ({self.stock})"

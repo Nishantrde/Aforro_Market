@@ -7,6 +7,7 @@ import MyOrders from './pages/MyOrders';
 import MerchantOrders from './pages/MerchantOrders';
 import { ui } from './theme';
 import MerchantStock from './pages/MerchantStock';
+import AddProducts from './pages/AddProducts'
 
 function App() {
   const [user, setUser] = useState(null);
@@ -90,7 +91,8 @@ function App() {
         {page === 'home' && <Home addToCart={addToCart} query={query} />}
         {page === 'cart' && <Cart cart={cart} onCheckout={checkout} placing={placing} onBack={() => setPage('home')} />}
         {page === 'orders' && <MyOrders onBack={() => setPage('home')} />}
-        {page === 'merchant_orders' && <MerchantOrders onBack={() => setPage('home')} />}
+        {page === 'addProducts' && <AddProducts onBack={() => setPage('home')}/>}
+        {page === 'merchant_orders' && <MerchantOrders onBack={() => setPage('home')} addProducts = {() => setPage('addProducts')} />}
         {page === 'merchant_stock' && <MerchantStock onBack={() => setPage('home')} />}
 
       </main>

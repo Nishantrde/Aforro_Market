@@ -432,3 +432,68 @@ Paths are relative to `~/all-project/aforro_market/aforro_market` (where `manage
 Then we do lock ordering.
 
 I can also put this summary into a file (a Doc or Markdown) if you want to keep it.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Here's the timeline, bro. Times are rough guesses at about 3 to 4 focused hours a day. I can't run your code, so "done" means you pasted test output or told me.
+
+## Done
+
+| Task | Proof |
+|---|---|
+| Redis cache and outage guard | 42 tests OK |
+| CI on GitHub Actions | `test` job green, `frontend` job on your word |
+| Lock ordering and idempotency | 46 tests OK |
+| Merchant stock endpoints and page | 52 tests OK |
+| Live stock over WebSockets (`ws` branch, local only) | 56 tests OK, demo on your word |
+| `Order.partner`, store lat/lng, `MemoryLocations` | 60 tests OK |
+
+Still unconfirmed: the `makemigrations --check` output and whether the migration is committed.
+
+## Remaining, in order
+
+| # | Task | Time | Tests after |
+|---|---|---|---|
+| 0 | Confirm the migration, create the `delivery` branch, commit | 10 min | 60 |
+| 1 | `nearest()` with haversine, plus 3 tests | 45 min | 63 |
+| 2 | Go online and Go offline endpoints, plus tests | 1 hr | about 68 |
+| 3 | Auto-assign the rider when the order becomes PACKED (row lock, skip busy riders, lock the order row) | 1.5 to 2 hrs | about 74 |
+| 4 | Rider's read-only call `GET /store/partner/order` | 30 min | about 77 |
+| 5 | `RedisLocations` with geohash cells and a try/except guard | 1.5 hrs | optional |
+| 6 | Rider React page (Go online, order box) | 1.5 hrs | |
+| 7 | Order tracking | not planned yet, 3+ hrs | |
+| 8 | README (built vs designed vs known gaps) | 1 hr | |
+| 9 | Mock interview and practice out loud | 2 hrs | |
+
+## Suggested days
+
+- **Day 1 (3 to 4 hrs):** tasks 0 to 3, or at least up to task 2. Task 3 is the hardest.
+- **Day 2 (3 to 4 hrs):** tasks 4, 6 and the start of 5.
+- **Day 3 (3 hrs):** finish 5 if you keep it, then 8 and 9.
+- **Task 7 (tracking):** only after all this, and only if you have time.
+
+**Total: about 7 to 9 hours** for tasks 1 to 6, plus 3 hours for the README and interview practice.
+
+## Parked or optional
+
+Price comparison, Docker and PWA are parked. I'd skip all three.
+
+## If time is short
+
+Cut task 5 first, since `MemoryLocations` already works for the demo. Then cut task 6. Never cut task 3's tests, or the README and practice.
+
+Paste your `nearest()` and the test output when it's ready.
+
+
+

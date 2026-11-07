@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { postJSON } from '../api';
 import { ui, statusStyle } from '../theme';
 
-export default function MerchantOrders({onBack}){
+export default function MerchantOrders({onBack, addProducts}){
       const [orders, setOrders] = useState([]);
       
     useEffect(() => {
@@ -53,7 +53,10 @@ export default function MerchantOrders({onBack}){
     <div className="mx-auto max-w-xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-stone-900">My orders</h1>
+        <div className='flex gap-3'>
+        <button onClick={addProducts} className={ui.btnGhost}>Add Products</button>
         <button onClick={onBack} className={ui.btnGhost}>Back</button>
+        </div>
       </div>
 
       {orders.length === 0 && <p className={ui.card + ' text-center ' + ui.muted}>No orders yet</p>}

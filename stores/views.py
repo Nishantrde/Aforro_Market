@@ -16,9 +16,13 @@ from collections import defaultdict
 from django.core.cache import cache
 import warnings
 
-
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+
+from accounts.models import DeliveryPartner
+from .locations import locations
+from .matching import nearest
+
 
 def broadcast_stock(store_id, product_id, stock):
     try:
@@ -51,7 +55,7 @@ def can_move(current, new_status):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])#all show the products if the user is not loged in
+@permission_classes([AllowAny])# show all the products if the user is not loged in
 def get_product(request):
     q = str(request.query_params.get('q',''))
     
@@ -73,7 +77,7 @@ def get_product(request):
     except Exception as e:
         warnings.warn(f"Cache unable to get the data {e}")
 
-    #if data was None, not cached or got expired set the cache for 60 sec by finding it from Serializer
+    #if data was None, not cached or got expired set the cache for 60 sec after Serializing it
     if data is None:
         products = Product.objects.all()
         data = list(ProductSerializer(products, many = True).data)
@@ -107,12 +111,12 @@ def place_order(request):
 
 
     #collect the list of product with store and quantity {"store_id": 1, "product_id": 10, "quantity": 2},
-    items = request.data.get('items', [])
+    items = request.data.get('items', [])# if the item is not provided return a []
     
     if not items:# if cart was empty return 400 bad request
         return Response({"error":"Empty cart"}, status=status.HTTP_400_BAD_REQUEST)
 
-    
+    # to store (product and quantity) value in "Store" key 
     lines_by_store = defaultdict(list)# using the default dict because some time we have to make keys and append the list at the same time even if the dose not exists
 
     for item in items:
@@ -127,6 +131,7 @@ def place_order(request):
         if store is None:
                 return Response({"error": "store not found"}, status=status.HTTP_400_BAD_REQUEST)
 
+        # if quantity was a char or str like ("ONE", "FIVE") return Value Error
         try:
             quantity = int(quantity)
         except (ValueError, TypeError):
@@ -135,7 +140,9 @@ def place_order(request):
         if quantity <= 0:
             return Response({"error":"quantity must be at least ONE"}, status.HTTP_400_BAD_REQUEST)
 
+        # find if the the product and the store exists
         stock_row = StoreProduct.objects.filter(store = store, product = product).first()
+
 
         if stock_row is None:
             return Response({'error': 'this store does not sell this product'},
@@ -146,25 +153,47 @@ def place_order(request):
                             status=status.HTTP_400_BAD_REQUEST)
 
         lines_by_store[store].append((product, quantity))
+        # (eg)lines_by_store = {
+        #         Store(id=1): [
+        #             (Milk, 2),
+        #             (Sugar, 1)
+        #         ],
+
+        #         Store(id=2): [
+        #             (Rice, 3)
+        #         ]
+        #     }
 
     try:
-        with transaction.atomic():
+        with transaction.atomic():# protect our database to be left at an incomplete state 
             created = []
-            
-            for store, lines in sorted(lines_by_store.items(), key=lambda pair: pair[0].id):
+
+            # sorts the list of items in "lines_by_store" by their store id and then store id is extracted by store and product list is extracted by lines
+            for store, lines in sorted(lines_by_store.items(), key=lambda pair: pair[0].id): 
+
                 total = Decimal('0')
+
+                # Creating orders
                 order = Order.objects.create(user = request.user, store = store)
 
+                #sorts the products according to product id and prduct and quantity is extracted respectively
                 for product, quantity in sorted(lines, key=lambda line: line[0].id):
-                    
+
+                    # select the particular product row and lock it until the customer has pursched it (until the transaction is over)
                     row = StoreProduct.objects.select_for_update().get(store = store, product = product)
+
                     if row.stock < quantity:
+                        # raise exceptions here and stops the block here
                         raise OutOfStock(f"only {row.stock} left of {product.product_name}")
+                    
                     row.stock -= quantity
                     row.save()
+
+                    # broadcast stock on transaction compleations
                     transaction.on_commit(
                         lambda s=store.id, p=product.id, st=row.stock: broadcast_stock(s, p, st)
                     )
+
                     price = Decimal(str(product.price))
                     OrderItem.objects.create(order = order, product = product, quantity = quantity, price = price)
                     total += price*quantity
@@ -177,12 +206,14 @@ def place_order(request):
                         "total": str(total),            
                     }
                 )
+
+            # create IdempotencyKey to track Duplicate order request
             IdempotencyKey.objects.create(user=request.user, key=key, response=created)
 
-    except OutOfStock as e:
+    except OutOfStock as e:# catches the "OutOfStock" exception which was raise above return "Out of stock" Responce
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    except IntegrityError:
+    except IntegrityError:# raises when the order alredy existed
         saved = IdempotencyKey.objects.filter(user=request.user, key=key).first()
         if saved:
             return Response(saved.response, status=200)
@@ -193,6 +224,7 @@ def place_order(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def cancel_order(request, order_id):
+
     order = Order.objects.filter(id = order_id, user = request.user).first()
 
     if order is None:
@@ -203,10 +235,14 @@ def cancel_order(request, order_id):
 
 
     with transaction.atomic():
+
+        # we have used "select_for_update" so that if the customers cancels the order twice the row of the first request gets locked and then canceled, after that the second request will be invalid because the order is already CANCELED and also they are not in PLACED or CONFIRMED state
         locked = Order.objects.select_for_update().get(id=order.id)
+
         if locked.status not in (Order.Status.PLACED, Order.Status.CONFIRMED):
             return Response({"error": "order can't be cancelled"}, status=status.HTTP_400_BAD_REQUEST)
-        for item in locked.items.all():
+        
+        for item in locked.items.all():# get all the OrderItems from "locked" through "related_name" which is set as "items" in OrderItem model
             row = StoreProduct.objects.select_for_update().get(store = locked.store, product = item.product)
             row.stock += item.quantity
             row.save()
@@ -215,13 +251,14 @@ def cancel_order(request, order_id):
             )
         locked.status = Order.Status.CANCELLED
         locked.save()
+
     return Response({"id": locked.id, "status": locked.status}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def product_stores(request, product_id):
-    rows = StoreProduct.objects.filter(product_id = product_id, stock__gt = 0).select_related('store')
+    rows = StoreProduct.objects.filter(product_id = product_id, stock__gt = 0).select_related('store')# "__gt" is just 'greater than' (stock > 0) 
     result = []
     for row in rows:
         result.append({"store_id": row.store_id, "store_name": row.store.store_name, "stock": row.stock})
@@ -234,7 +271,7 @@ def product_stores(request, product_id):
 def my_orders(request):
     orders = (Order.objects.filter(user=request.user)
           .select_related('store')
-          .prefetch_related('items__product')
+          .prefetch_related('items__product')# fetch all the products from the order
           .order_by('-created_at'))
     result = []
     for order in orders:
@@ -262,12 +299,37 @@ def update_order_status(request, order_id):
     order = Order.objects.filter(id=order_id, store__owner__user=request.user).first()
     if order is None:
         return Response({"error": "order not found"}, status=status.HTTP_404_NOT_FOUND)
-
+    order = Order.objects.select_for_update().get(id=order.id)
     if not can_move(order.status, new_status):
         return Response({"error": f"can't move from {order.status} to {new_status}"}, status=status.HTTP_400_BAD_REQUEST)
 
-    order.status = new_status
-    order.save()
+    with transaction.atomic():
+        order = Order.objects.select_for_update().get(id=order.id)   # lock the order row
+        # TODO: re-check can_move(order.status, new_status) after the lock
+        order.status = new_status
+        order.save()
+
+        if new_status == Order.Status.PACKED:
+            store = order.store
+            if store.latitude is not None and store.longitude is not None:
+                try:
+                    riders = locations.nearby(store.latitude, store.longitude)
+                except Exception as e:
+                    warnings.warn(f"Rider lookup failed: {e}")
+                    riders = []                
+                while riders:
+                    chosen_id = nearest(riders, store.latitude, store.longitude)
+                    rider = DeliveryPartner.objects.select_for_update().filter(id=chosen_id, online=True).first()
+                    busy = rider is None or Order.objects.filter(
+                        partner=rider,
+                        status__in=[Order.Status.PACKED, Order.Status.OUT_FOR_DELIVERY],
+                    ).exclude(id=order.id).exists()
+                    if not busy:
+                        order.partner = rider
+                        order.save()
+                        break
+                    riders = [r for r in riders if r[0] != chosen_id]   # try the next nearest
+
     return Response({"id": order.id, "status": order.status})
 
 
@@ -343,7 +405,57 @@ def merchant_stock(request):
        "stock": row.stock})
     return Response(stockList)
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def all_stock(request):
+    rows = StoreProduct.objects.values("store_id", "product_id", "stock")
+    return Response(list(rows))
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def partner_online(request):
+    partner = DeliveryPartner.objects.filter(user=request.user).first()
+    if partner is None:
+        return Response({"error": "not a delivery partner"}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        lat = float(request.data.get("lat"))
+        lng = float(request.data.get("lng"))
+    except (ValueError, TypeError):
+        return Response({"error": "lat and lng must be numbers"}, status=status.HTTP_400_BAD_REQUEST)
+
+    partner.online = True
+    partner.save()
+    locations.update(partner.id, lat, lng)      # <- your first line goes here
+    return Response({"online": True})
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def partner_offline(request):
+    partner = DeliveryPartner.objects.filter(user=request.user).first()
+    if partner is None:
+        return Response({"error": "not a delivery partner"}, status=status.HTTP_404_NOT_FOUND)
+    partner.online = False
+    partner.save()
+    try:
+        locations.remove(partner.id)
+    except Exception as e:
+        warnings.warn(f"Could not remove rider location: {e}")
+    return Response({"online": False})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def partner_order(request):
+    partner = DeliveryPartner.objects.filter(user=request.user).first()
+    if partner is None:
+        return Response({"error": "not a delivery partner"}, status=status.HTTP_404_NOT_FOUND)
+    order = (Order.objects
+             .filter(partner=partner, status__in=[Order.Status.PACKED, Order.Status.OUT_FOR_DELIVERY])
+             .select_related('store')
+             .first())
+    if order is None:
+        return Response(None)
+    return Response({"id": order.id, "store": order.store.store_name, "status": order.status})
 
 
 
