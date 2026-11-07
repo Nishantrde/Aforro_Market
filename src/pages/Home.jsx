@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ui } from '../theme';
+import { ui, categoryEmoji } from '../theme';
 
 function Home({ addToCart, query = '' }) {
   const [products, setProducts] = useState([]);
@@ -37,6 +37,11 @@ function Home({ addToCart, query = '' }) {
 
   return (
     <div className="space-y-8">
+      <div className={ui.hero}>
+        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-100">Local stores, delivered</p>
+        <h1 className="mt-1 text-2xl font-extrabold sm:text-3xl">Fresh groceries from stores near you</h1>
+        <p className="mt-2 text-emerald-50">Order from your neighbourhood kirana, with real stock, no surprises.</p>
+      </div>
       {words.length > 0 && visible.length === 0 && (
         <p className={ui.card + ' text-center ' + ui.muted}>No products match "{query}"</p>
       )}
@@ -46,9 +51,12 @@ function Home({ addToCart, query = '' }) {
           <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
             {items.map(item => (
               <div key={item.id} className={ui.card + ' flex flex-col justify-between gap-3'}>
+                <div className="flex h-24 items-center justify-center rounded-2xl bg-emerald-50 text-5xl">
+                  {categoryEmoji[item.category] || '🧺'}
+                </div>
                 <div>
                   <p className="font-semibold text-stone-900">{item.product_name}</p>
-                  <p className="mt-1 text-lg font-bold text-green-700">₹{item.price}</p>
+                  <p className={ui.price}>₹{item.price}</p>
                 </div>
                 <button onClick={() => handelBuy(item)} className={ui.btn + ' w-full'}>
                   Add to cart
