@@ -2,6 +2,8 @@ import { createRoot } from 'react-dom/client';
 import React from 'react';
 import App from './App';
 import './style.css'; 
+import 'leaflet/dist/leaflet.css';
+
 
 createRoot(document.getElementById('root')).render(
     <React.StrictMode>

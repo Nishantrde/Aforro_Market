@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import NavBar from './components/Navbar';
 import Home from './pages/Home';
 import { postJSON } from './api';
+import { ui } from './theme';
+
 import Cart from './pages/Cart';
 import MyOrders from './pages/MyOrders';
 import MerchantOrders from './pages/MerchantOrders';
-import { ui } from './theme';
 import MerchantStock from './pages/MerchantStock';
+import TrackPartners from './pages/TrackPartners'
 
 function App() {
   const [user, setUser] = useState(null);
@@ -85,6 +87,7 @@ function App() {
         onLogoClick={() => setPage('home')}
         onMerchantOrdersClick={() => setPage('merchant_orders')}
         onMerchantStockClick={() => setPage('merchant_stock')}
+        onPartnerTrackClick={() => setPage('track_partners')}
         />
       <main className={ui.container + ' py-6'}>
         {page === 'home' && <Home addToCart={addToCart} query={query} />}
@@ -92,7 +95,7 @@ function App() {
         {page === 'orders' && <MyOrders onBack={() => setPage('home')} />}
         {page === 'merchant_orders' && <MerchantOrders onBack={() => setPage('home')} />}
         {page === 'merchant_stock' && <MerchantStock onBack={() => setPage('home')} />}
-
+        {page === 'track_partners' && <TrackPartners onBack={() => setPage('home')} />}
       </main>
     </div>
   );

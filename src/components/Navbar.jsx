@@ -32,7 +32,7 @@ function LoginButton({ isLoggedIn, loginUrl, username }) {
   return <a href={loginUrl} className={ui.btn}>Login</a>;
 }
 
-export default function NavBar({ isLoggedIn = false, name, cartCount = 0, query = '', onSearch, onCartClick, onOrdersClick, onLogoClick, onMerchantOrdersClick, onMerchantStockClick }) {
+export default function NavBar({ isLoggedIn = false, name, cartCount = 0, query = '', onSearch, onCartClick, onOrdersClick, onLogoClick, onMerchantOrdersClick, onMerchantStockClick, onPartnerTrackClick }) {
   const loginUrl = window.DJANGO_GOOGLE_LOGIN_URL || '#';
 
   return (
@@ -54,6 +54,9 @@ export default function NavBar({ isLoggedIn = false, name, cartCount = 0, query 
             </button>
             <button onClick={onMerchantStockClick} className="text-sm font-semibold text-stone-600 transition hover:text-green-700">
               Stock
+            </button>
+            <button onClick={onPartnerTrackClick} className="text-sm font-semibold text-stone-600 transition hover:text-green-700">
+              Track Partners
             </button>
             <button onClick={onCartClick} aria-label="Cart" className="relative p-1 text-stone-700 transition hover:text-green-700">
               <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-7 sm:size-8">

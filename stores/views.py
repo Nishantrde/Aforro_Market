@@ -8,6 +8,8 @@ from rest_framework import status
 from .models import Product, Store, Order, OrderItem, StoreProduct, IdempotencyKey
 from .serializer import ProductSerializer, StoreSerializer
 
+from .cache_location import geoHash
+
 from difflib import get_close_matches
 from django.db import transaction, IntegrityError
 from decimal import Decimal
@@ -31,8 +33,6 @@ ALLOWED = {
 #varifies that if 'new_status' is the value of the key 'current'
 def can_move(current, new_status):
     return new_status in ALLOWED.get(current, [])
-
-
 
 @api_view(['GET'])
 @permission_classes([AllowAny])#all show the products if the user is not loged in
@@ -304,7 +304,7 @@ def update_stock(request):
         row.stock = new_stock
         row.save()
 
-    return Response({"store_id": store.id, "product_id": product_id, "stock": row.stock})
+    return Response({"store_id": store.id, "product_id": product_id, "stock": row.stock}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -320,8 +320,30 @@ def merchant_stock(request):
        "stock": row.stock})
     return Response(stockList)
 
-
-
-
+@api_view(['POST', 'GET'])
+@permission_classes([IsAuthenticated])
+def online_partners(request):
+    if request.method == 'POST':
+        location = request.data.get("location")
+        try:
+            hashCode = geoHash(location)
+            print(hashCode)
+            return Response({"hash_code":hashCode}, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response({"error":str(e)}, status=status.HTTP_404_NOT_FOUND)
+        
+    if request.method == 'GET':
+        hashCode = request.query_params.get("location")
+        try:
+            data = cache.get(f"{hashCode}")
+            if data is None:
+                return Response(
+                    {"error": "No location found in cache"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            return Response({"location":data},status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error":str(e)},status=status.HTTP_404_NOT_FOUND)
 
 
